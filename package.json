@@ -1,0 +1,61 @@
+{
+  "name": "dash4devs",
+  "version": "0.1.0",
+  "description": "E-commerce SDK for developers using DashForDevs, www.dashfordevs.com - integrate DevDash storefront into any website",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./react": {
+      "import": "./react/index.js",
+      "types": "./react/index.d.ts"
+    },
+    "./utils": {
+      "import": "./utils/index.js",
+      "types": "./utils/index.d.ts"
+    },
+    "./storage": {
+      "import": "./storage/index.js",
+      "types": "./storage/index.d.ts"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "services/",
+    "react/",
+    "utils/",
+    "storage/",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "ecommerce",
+    "sdk",
+    "storefront",
+    "devdash",
+    "shopping-cart",
+    "products",
+    "api",
+    "headless-commerce",
+    "react"
+  ],
+  "author": "John Molina from CodeCraft Studios <johnmolina@codecraftstudios.net>",
+  "license": "MIT",
+  "homepage": "https://dashfordevs.com",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
