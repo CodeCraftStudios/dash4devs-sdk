@@ -202,8 +202,61 @@ export interface ProductsListOptions {
   offset?: number;
   /** Filter by category slug */
   category?: string;
+  /** Filter by brand slug */
+  brand?: string;
   /** Search in product name */
   search?: string;
+  /** Filter by custom fields (e.g. {popular: true, homepage_section: "hero"}) */
+  customFields?: Record<string, string | number | boolean>;
+}
+
+export interface ProductReview {
+  id: string;
+  rating: number;
+  title: string;
+  body: string;
+  author_name: string;
+  verified_purchase: boolean;
+  created_at: string;
+}
+
+export interface ProductReviewsResponse {
+  reviews: ProductReview[];
+  stats: {
+    count: number;
+    average_rating: number;
+    rating_breakdown: {
+      1: number;
+      2: number;
+      3: number;
+      4: number;
+      5: number;
+    };
+  };
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+}
+
+export interface SubmitReviewData {
+  /** Rating from 1-5 (required) */
+  rating: number;
+  /** Reviewer name (required) */
+  author_name: string;
+  /** Reviewer email (optional) */
+  author_email?: string;
+  /** Review title (optional) */
+  title?: string;
+  /** Review content (optional) */
+  body?: string;
+}
+
+export interface SubmitReviewResponse {
+  review: ProductReview;
+  message: string;
 }
 
 export interface CategoriesListOptions {
@@ -213,6 +266,8 @@ export interface CategoriesListOptions {
   parent?: string;
   /** Filter by depth level (0 = root, 1 = first level children, etc.) */
   depth?: number;
+  /** Filter by custom fields (e.g. {show_in_mega_menu: true}) */
+  customFields?: Record<string, string | number | boolean>;
 }
 
 export interface CategoryGetOptions {
@@ -383,6 +438,20 @@ declare class ProductsModule {
    * Get a single product by slug
    */
   get(slug: string): Promise<ProductGetResponse>;
+
+  /**
+   * Get reviews for a product
+   * @param slug - Product slug
+   * @param options - Pagination options
+   */
+  getReviews(slug: string, options?: { limit?: number; offset?: number }): Promise<ProductReviewsResponse>;
+
+  /**
+   * Submit a review for a product
+   * @param slug - Product slug
+   * @param data - Review data
+   */
+  submitReview(slug: string, data: SubmitReviewData): Promise<SubmitReviewResponse>;
 }
 
 declare class CategoriesModule {
@@ -934,6 +1003,8 @@ export interface BlogPostsListOptions {
   search?: string;
   /** Only featured posts */
   featured?: boolean;
+  /** Filter by custom fields (e.g. {show_in_sidebar: true, homepage_section: "latest_news"}) */
+  customFields?: Record<string, string | number | boolean>;
 }
 
 export interface BlogPostsListResponse {

@@ -15,8 +15,24 @@ export class ProductsModule {
    * @param {number} options.limit - Number of products per page (default: 20, max: 100)
    * @param {number} options.offset - Pagination offset (default: 0)
    * @param {string} options.category - Filter by category slug
+   * @param {string} options.brand - Filter by brand slug
    * @param {string} options.search - Search in product name
+   * @param {Object} options.customFields - Filter by custom fields (e.g. {popular: true, homepage_section: "hero"})
    * @returns {Promise<{products: Array, pagination: Object}>}
+   *
+   * @example
+   * // Get featured products for homepage
+   * const featured = await client.products.list({
+   *   customFields: { featured: true, homepage_section: "hero" },
+   *   limit: 6
+   * });
+   *
+   * @example
+   * // Get new arrivals
+   * const newArrivals = await client.products.list({
+   *   customFields: { new_arrival: true },
+   *   limit: 12
+   * });
    */
   async list(options = {}) {
     const params = new URLSearchParams();
@@ -24,7 +40,15 @@ export class ProductsModule {
     if (options.limit) params.append("limit", options.limit);
     if (options.offset) params.append("offset", options.offset);
     if (options.category) params.append("category", options.category);
+    if (options.brand) params.append("brand", options.brand);
     if (options.search) params.append("search", options.search);
+
+    // Custom fields filtering - prefix with cf_
+    if (options.customFields && typeof options.customFields === "object") {
+      for (const [key, value] of Object.entries(options.customFields)) {
+        params.append(`cf_${key}`, String(value));
+      }
+    }
 
     const queryString = params.toString();
     const url = `${this.client.baseURL}/api/storefront/products${queryString ? `?${queryString}` : ""}`;
@@ -40,6 +64,56 @@ export class ProductsModule {
   async get(slug) {
     const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}`;
     return this.client._fetch(url);
+  }
+
+  /**
+   * Get reviews for a product
+   * @param {string} slug - Product slug
+   * @param {Object} options - Query options
+   * @param {number} options.limit - Number of reviews per page (default: 20)
+   * @param {number} options.offset - Pagination offset (default: 0)
+   * @returns {Promise<{reviews: Array, stats: Object, pagination: Object}>}
+   *
+   * @example
+   * const { reviews, stats } = await client.products.getReviews("blue-widget");
+   * console.log(`${stats.count} reviews, avg rating: ${stats.average_rating}`);
+   */
+  async getReviews(slug, options = {}) {
+    const params = new URLSearchParams();
+    if (options.limit) params.append("limit", options.limit);
+    if (options.offset) params.append("offset", options.offset);
+
+    const queryString = params.toString();
+    const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}/reviews${queryString ? `?${queryString}` : ""}`;
+    return this.client._fetch(url);
+  }
+
+  /**
+   * Submit a review for a product
+   * @param {string} slug - Product slug
+   * @param {Object} data - Review data
+   * @param {number} data.rating - Rating from 1-5 (required)
+   * @param {string} data.author_name - Reviewer name (required)
+   * @param {string} [data.author_email] - Reviewer email (optional)
+   * @param {string} [data.title] - Review title (optional)
+   * @param {string} [data.body] - Review content (optional)
+   * @returns {Promise<{review: Object, message: string}>}
+   *
+   * @example
+   * await client.products.submitReview("blue-widget", {
+   *   rating: 5,
+   *   author_name: "John Doe",
+   *   author_email: "john@example.com",
+   *   title: "Great product!",
+   *   body: "This widget exceeded my expectations..."
+   * });
+   */
+  async submitReview(slug, data) {
+    const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}/reviews`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 }
 

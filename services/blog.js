@@ -18,7 +18,22 @@ export class BlogModule {
    * @param {string} options.tag - Filter by tag
    * @param {string} options.search - Search in title and excerpt
    * @param {boolean} options.featured - Only featured posts
+   * @param {Object} options.customFields - Filter by custom fields (e.g. {sidebar_featured: true})
    * @returns {Promise<{posts: Array, pagination: Object}>}
+   *
+   * @example
+   * // Get posts for sidebar widget
+   * const sidebarPosts = await client.blog.list({
+   *   customFields: { show_in_sidebar: true },
+   *   limit: 5
+   * });
+   *
+   * @example
+   * // Get posts for a specific homepage section
+   * const homepagePosts = await client.blog.list({
+   *   customFields: { homepage_section: "latest_news" },
+   *   limit: 3
+   * });
    */
   async list(options = {}) {
     const params = new URLSearchParams();
@@ -29,6 +44,13 @@ export class BlogModule {
     if (options.tag) params.append("tag", options.tag);
     if (options.search) params.append("search", options.search);
     if (options.featured) params.append("featured", "true");
+
+    // Custom fields filtering - prefix with cf_
+    if (options.customFields && typeof options.customFields === "object") {
+      for (const [key, value] of Object.entries(options.customFields)) {
+        params.append(`cf_${key}`, String(value));
+      }
+    }
 
     const queryString = params.toString();
     const url = `${this.client.baseURL}/api/storefront/blog/posts${queryString ? `?${queryString}` : ""}`;

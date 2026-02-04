@@ -16,7 +16,21 @@ export class CategoriesModule {
    * @param {boolean} options.tree - If true, returns nested tree structure with children
    * @param {string} options.parent - Filter by parent category slug
    * @param {number} options.depth - Filter by depth level (0 = root, 1 = first level children, etc.)
+   * @param {Object} options.customFields - Filter by custom fields (e.g. {show_in_mega_menu: true})
    * @returns {Promise<{categories: Array}>}
+   *
+   * @example
+   * // Get categories for mega menu
+   * const menuCategories = await client.categories.list({
+   *   customFields: { show_in_mega_menu: true }
+   * });
+   *
+   * @example
+   * // Get featured categories for homepage
+   * const featured = await client.categories.list({
+   *   customFields: { featured_on_homepage: true },
+   *   depth: 0
+   * });
    */
   async list(options = {}) {
     const params = new URLSearchParams();
@@ -24,6 +38,13 @@ export class CategoriesModule {
     if (options.tree) params.append("tree", "true");
     if (options.parent) params.append("parent", options.parent);
     if (options.depth !== undefined) params.append("depth", options.depth);
+
+    // Custom fields filtering - prefix with cf_
+    if (options.customFields && typeof options.customFields === "object") {
+      for (const [key, value] of Object.entries(options.customFields)) {
+        params.append(`cf_${key}`, String(value));
+      }
+    }
 
     const queryString = params.toString();
     const url = `${this.client.baseURL}/api/storefront/categories${queryString ? `?${queryString}` : ""}`;
