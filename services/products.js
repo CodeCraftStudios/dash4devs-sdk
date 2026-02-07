@@ -17,13 +17,15 @@ export class ProductsModule {
    * @param {string} options.category - Filter by category slug
    * @param {string} options.brand - Filter by brand slug
    * @param {string} options.search - Search in product name
+   * @param {string[]} options.include - Include additional fields (e.g. ["main_size", "variations"])
    * @param {Object} options.customFields - Filter by custom fields (e.g. {popular: true, homepage_section: "hero"})
    * @returns {Promise<{products: Array, pagination: Object}>}
    *
    * @example
-   * // Get featured products for homepage
+   * // Get featured products for homepage with main_size for pricing
    * const featured = await client.products.list({
    *   customFields: { featured: true, homepage_section: "hero" },
+   *   include: ["main_size"],
    *   limit: 6
    * });
    *
@@ -42,6 +44,11 @@ export class ProductsModule {
     if (options.category) params.append("category", options.category);
     if (options.brand) params.append("brand", options.brand);
     if (options.search) params.append("search", options.search);
+
+    // Include additional fields (e.g., main_size for pricing details)
+    if (options.include && Array.isArray(options.include)) {
+      params.append("include", options.include.join(","));
+    }
 
     // Custom fields filtering - prefix with cf_
     if (options.customFields && typeof options.customFields === "object") {

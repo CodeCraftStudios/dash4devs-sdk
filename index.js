@@ -18,6 +18,8 @@ import { CheckoutModule } from "./services/checkout.js";
 import { EmailModule } from "./services/email.js";
 import { ShippingModule } from "./services/shipping.js";
 import { TrackingModule } from "./services/tracking.js";
+import { ContactModule } from "./services/contact.js";
+import { UploadModule } from "./services/upload.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -55,6 +57,8 @@ export class DashClient {
     this.email = new EmailModule(this);
     this.shipping = new ShippingModule(this);
     this.tracking = new TrackingModule(this);
+    this.contact = new ContactModule(this);
+    this.upload = new UploadModule(this);
 
     // Inject footer branding (required)
     if (typeof window !== "undefined") {
@@ -223,6 +227,8 @@ export { CheckoutModule } from "./services/checkout.js";
 export { EmailModule } from "./services/email.js";
 export { ShippingModule } from "./services/shipping.js";
 export { TrackingModule } from "./services/tracking.js";
+export { ContactModule } from "./services/contact.js";
+export { UploadModule } from "./services/upload.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";

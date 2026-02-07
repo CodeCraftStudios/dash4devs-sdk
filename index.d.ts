@@ -159,6 +159,10 @@ export interface Category {
   description: string;
   image: string | null;
   parent_id: string | null;
+  /** Short name for navigation menus (falls back to name if not set) */
+  navbar_name: string | null;
+  /** Caption text shown under navbar name in mega menus */
+  navbar_caption: string | null;
   children?: Category[];
   products?: {
     items: Product[];
