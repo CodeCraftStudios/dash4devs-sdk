@@ -20,6 +20,7 @@ import { ShippingModule } from "./services/shipping.js";
 import { TrackingModule } from "./services/tracking.js";
 import { ContactModule } from "./services/contact.js";
 import { UploadModule } from "./services/upload.js";
+import { BrandsModule } from "./services/brands.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -59,6 +60,7 @@ export class DashClient {
     this.tracking = new TrackingModule(this);
     this.contact = new ContactModule(this);
     this.upload = new UploadModule(this);
+    this.brands = new BrandsModule(this);
 
     // Inject footer branding (required)
     if (typeof window !== "undefined") {
@@ -229,6 +231,7 @@ export { ShippingModule } from "./services/shipping.js";
 export { TrackingModule } from "./services/tracking.js";
 export { ContactModule } from "./services/contact.js";
 export { UploadModule } from "./services/upload.js";
+export { BrandsModule } from "./services/brands.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";

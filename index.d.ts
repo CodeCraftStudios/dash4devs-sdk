@@ -152,17 +152,41 @@ export interface ProductAttributeOption {
   sizes: ProductSize[];
 }
 
+export interface CategoryImage {
+  id: string;
+  image: string | null;
+  alt_text: string | null;
+  order: number;
+}
+
 export interface Category {
   id: string;
   name: string;
   slug: string;
   description: string;
+  /** Category cover image (for listings/home page) */
   image: string | null;
+  /** Hero banner image (for category page hero section) */
+  hero_image: string | null;
   parent_id: string | null;
   /** Short name for navigation menus (falls back to name if not set) */
   navbar_name: string | null;
   /** Caption text shown under navbar name in mega menus */
   navbar_caption: string | null;
+  /** Whether this category appears on the home page */
+  show_in_home: boolean;
+  /** Flexible custom fields for filtering */
+  custom_fields: Record<string, any>;
+  // SEO fields
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_keywords: string | null;
+  /** Open Graph image for social sharing */
+  og_image: string | null;
+  /** JSON-LD schema markup */
+  schema_json: object | null;
+  /** Gallery images for the category */
+  images: CategoryImage[];
   children?: Category[];
   products?: {
     items: Product[];
@@ -313,6 +337,40 @@ export interface ProductGetResponse {
   product: Product;
 }
 
+export interface FeaturedVariation {
+  id: string;
+  /** Variation name (e.g. "Blue Razz") */
+  name: string;
+  /** Variation slug */
+  slug: string;
+  /** Variation's main size image URL */
+  image: string | null;
+  /** Parent product name */
+  product_name: string;
+  /** Parent product slug for linking */
+  product_slug: string;
+  /** Desktop: horizontal position % (0-100) */
+  d_pos_x: number | null;
+  /** Desktop: vertical position % (0-100) */
+  d_pos_y: number | null;
+  /** Desktop: scale multiplier (1 = default) */
+  d_scale: number | null;
+  /** Desktop: rotation in degrees */
+  d_rot: number | null;
+  /** Mobile: horizontal position % (0-100) */
+  m_pos_x: number | null;
+  /** Mobile: vertical position % (0-100) */
+  m_pos_y: number | null;
+  /** Mobile: scale multiplier (1 = default) */
+  m_scale: number | null;
+  /** Mobile: rotation in degrees */
+  m_rot: number | null;
+}
+
+export interface FeaturedVariationsResponse {
+  variations: FeaturedVariation[];
+}
+
 export interface CategoriesListResponse {
   categories: Category[];
 }
@@ -456,6 +514,11 @@ declare class ProductsModule {
    * @param data - Review data
    */
   submitReview(slug: string, data: SubmitReviewData): Promise<SubmitReviewResponse>;
+
+  /**
+   * Get featured variations (variations with show_in_bg custom field)
+   */
+  getFeaturedVariations(): Promise<FeaturedVariationsResponse>;
 }
 
 declare class CategoriesModule {
@@ -487,6 +550,63 @@ declare class CategoriesModule {
    * @param parentSlug - Parent category slug
    */
   getChildren(parentSlug: string): Promise<CategoriesListResponse>;
+}
+
+// =============================================================================
+// BRANDS MODULE
+// =============================================================================
+
+export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  image: string | null;
+}
+
+export interface BrandsListResponse {
+  brands: Brand[];
+}
+
+export interface BrandDetail {
+  id: string;
+  name: string;
+  slug: string;
+  image: string | null;
+  description: string;
+  short_description: string;
+  seo_title: string;
+  seo_description: string;
+  seo_keywords: string;
+  og_image: string | null;
+  custom_fields: Record<string, any>;
+}
+
+export interface BrandDetailResponse {
+  brand: BrandDetail;
+  products: any[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+}
+
+export interface BrandGetOptions {
+  limit?: number;
+  offset?: number;
+}
+
+declare class BrandsModule {
+  /**
+   * List all active brands
+   */
+  list(): Promise<BrandsListResponse>;
+
+  /**
+   * Get a single brand with its products
+   */
+  get(slug: string, options?: BrandGetOptions): Promise<BrandDetailResponse>;
 }
 
 declare class CartModule {
@@ -1229,6 +1349,9 @@ export declare class DashClient {
 
   /** Checkout API */
   readonly checkout: CheckoutModule;
+
+  /** Brands API */
+  readonly brands: BrandsModule;
 
   /**
    * Health check - validates API key and returns organization info

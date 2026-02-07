@@ -122,6 +122,15 @@ export class ProductsModule {
       body: JSON.stringify(data),
     });
   }
+
+  /**
+   * Get featured variations (variations with show_in_bg custom field)
+   * @returns {Promise<{variations: Array}>}
+   */
+  async getFeaturedVariations() {
+    const url = `${this.client.baseURL}/api/storefront/featured-variations`;
+    return this.client._fetch(url);
+  }
 }
 
 export default ProductsModule;
