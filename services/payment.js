@@ -13,12 +13,10 @@
  *   const result = await dash.payment.charge({ token, amount, ... });
  *
  * The SDK dynamically loads only the required processor library
- * (Accept.js for Authorize.net, Stripe.js for Stripe, etc.)
- * — never all of them.
+ * (Accept.js for Authorize.net) at runtime.
  */
 
 import { AuthorizeNetCSR } from "../processors/authorize-net.js";
-import { StripeCSR } from "../processors/stripe.js";
 
 export class PaymentModule {
   constructor(client) {
@@ -71,7 +69,7 @@ export class PaymentModule {
           environment: this._processor.environment,
         });
 
-        // Load the processor's client library (Accept.js, Stripe.js, etc.)
+        // Load the processor's client library (Accept.js for Authorize.net)
         await this._handler.load();
       }
 
@@ -102,32 +100,23 @@ export class PaymentModule {
    * Must call load() first. CSR only.
    *
    * For Authorize.net: pass { cardNumber, expDate, cvv }
-   * For Stripe: pass a Stripe card Element as the first argument
    *
    * Returns a processor-agnostic token that can be sent to charge().
    *
-   * @param {Object} cardData - Card data or Stripe Element
-   * @param {string} [cardData.cardNumber] - Card number (Authorize.net)
-   * @param {string} [cardData.expDate] - Expiration date MM/YY (Authorize.net)
-   * @param {string} [cardData.cvv] - Security code (Authorize.net)
-   * @param {Object} [extra] - Extra options (e.g., billingDetails for Stripe)
+   * @param {Object} cardData - Card data
+   * @param {string} cardData.cardNumber - Card number
+   * @param {string} cardData.expDate - Expiration date MM/YY
+   * @param {string} cardData.cvv - Security code
    * @returns {Promise<{token: string, descriptor: string}>}
    *
    * @example
-   * // Authorize.net
    * const { token, descriptor } = await dash.payment.tokenize({
    *   cardNumber: "4111111111111111",
    *   expDate: "12/25",
    *   cvv: "123",
    * });
-   *
-   * @example
-   * // Stripe (pass the card Element)
-   * const { token, descriptor } = await dash.payment.tokenize(cardElement, {
-   *   name: "John Doe",
-   * });
    */
-  async tokenize(cardData, extra = {}) {
+  async tokenize(cardData) {
     if (!this._loaded || !this._handler) {
       throw new Error(
         "Payment processor not loaded. Call dash.payment.load() first."
@@ -141,17 +130,7 @@ export class PaymentModule {
       );
     }
 
-    // Route to the correct handler
-    switch (this._processor.slug) {
-      case "authorize-net":
-        return this._handler.tokenize(cardData);
-
-      case "stripe":
-        return this._handler.tokenize(cardData, extra);
-
-      default:
-        throw new Error(`Tokenization not supported for ${this._processor.name}.`);
-    }
+    return this._handler.tokenize(cardData);
   }
 
   /**
@@ -337,9 +316,8 @@ export class PaymentModule {
 
   /**
    * Get the underlying processor handler for advanced usage.
-   * For Stripe, this gives access to createElements() for custom forms.
    *
-   * @returns {Object} The processor handler (AuthorizeNetCSR, StripeCSR, etc.)
+   * @returns {AuthorizeNetCSR} The processor handler
    */
   getHandler() {
     if (!this._handler) {
@@ -357,7 +335,7 @@ export class PaymentModule {
   }
 
   /**
-   * The active processor's slug (e.g., "authorize-net", "stripe").
+   * The active processor's slug (e.g., "authorize-net").
    * @returns {string|null}
    */
   get processorSlug() {
@@ -373,13 +351,10 @@ export class PaymentModule {
       case "authorize-net":
         return new AuthorizeNetCSR(config);
 
-      case "stripe":
-        return new StripeCSR(config);
-
       default:
         throw new Error(
           `Unsupported payment processor: ${slug}. ` +
-          `Supported: authorize-net, stripe.`
+          `Supported: authorize-net.`
         );
     }
   }

@@ -235,7 +235,6 @@ export { BrandsModule } from "./services/brands.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";
-export { StripeCSR } from "./processors/stripe.js";
 
 // Default export
 export default DashClient;

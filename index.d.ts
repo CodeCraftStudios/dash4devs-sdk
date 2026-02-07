@@ -818,9 +818,9 @@ export interface StorefrontPaymentProcessor {
 }
 
 export interface PaymentToken {
-  /** Opaque token from the processor (Accept.js nonce, Stripe PaymentMethod ID, etc.) */
+  /** Opaque token from the processor (Accept.js nonce, etc.) */
   token: string;
-  /** Token type descriptor (e.g., "COMMON.ACCEPT.INAPP.PAYMENT", "STRIPE.PAYMENT_METHOD") */
+  /** Token type descriptor (e.g., "COMMON.ACCEPT.INAPP.PAYMENT") */
   descriptor: string;
 }
 
@@ -960,21 +960,13 @@ declare class AuthorizeNetCSR {
   tokenize(cardData: CardData): Promise<PaymentToken>;
 }
 
-declare class StripeCSR {
-  constructor(config: { publishable_key: string; environment?: string });
-  load(): Promise<void>;
-  getStripe(): any;
-  createElements(options?: any): any;
-  tokenize(cardElement: any, billingDetails?: any): Promise<PaymentToken>;
-}
-
 declare class PaymentModule {
   constructor(client: DashClient);
 
   /** Whether the processor's client library has been loaded */
   readonly isLoaded: boolean;
 
-  /** The active processor's slug (e.g., "authorize-net", "stripe") */
+  /** The active processor's slug (e.g., "authorize-net") */
   readonly processorSlug: string | null;
 
   /**
@@ -997,7 +989,6 @@ declare class PaymentModule {
    * Tokenize card data. CSR only — must call load() first.
    *
    * For Authorize.net: pass { cardNumber, expDate, cvv }
-   * For Stripe: pass a Stripe card Element as first arg
    *
    * @example
    * const { token, descriptor } = await dash.payment.tokenize({
@@ -1006,7 +997,7 @@ declare class PaymentModule {
    *   cvv: "123",
    * });
    */
-  tokenize(cardData: CardData | any, extra?: any): Promise<PaymentToken>;
+  tokenize(cardData: CardData): Promise<PaymentToken>;
 
   /**
    * Charge a tokenized payment via the storefront API.
@@ -1062,9 +1053,8 @@ declare class PaymentModule {
 
   /**
    * Get the underlying processor handler for advanced usage.
-   * For Stripe, gives access to createElements() for custom forms.
    */
-  getHandler(): AuthorizeNetCSR | StripeCSR;
+  getHandler(): AuthorizeNetCSR;
 }
 
 // =============================================================================
