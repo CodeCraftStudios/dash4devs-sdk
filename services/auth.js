@@ -79,17 +79,24 @@ export class AuthModule {
   /**
    * Request OTP code for authentication
    * @param {string} email - Customer email
+   * @param {Object} [options] - Additional options
+   * @param {boolean} [options.accepts_marketing] - Marketing consent
    * @returns {Promise<{message: string, email: string}>}
    */
-  async requestOTP(email) {
+  async requestOTP(email, options = {}) {
     if (!email) {
       throw new Error("email is required");
+    }
+
+    const body = { email };
+    if (options.accepts_marketing !== undefined) {
+      body.accepts_marketing = options.accepts_marketing;
     }
 
     const url = `${this.client.baseURL}/api/storefront/auth/request-otp`;
     return this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(body),
     });
   }
 

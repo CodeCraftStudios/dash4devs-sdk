@@ -21,6 +21,11 @@ import { TrackingModule } from "./services/tracking.js";
 import { ContactModule } from "./services/contact.js";
 import { UploadModule } from "./services/upload.js";
 import { BrandsModule } from "./services/brands.js";
+import { MarketingModule } from "./services/marketing.js";
+import { AffiliatesModule } from "./services/affiliates.js";
+import { TaxModule } from "./services/tax.js";
+import { CoaModule } from "./services/coa.js";
+import { LegalModule } from "./services/legal.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -44,6 +49,7 @@ export class DashClient {
 
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
+    this._sessionId = null;
 
     // Initialize modules
     this.products = new ProductsModule(this);
@@ -61,6 +67,11 @@ export class DashClient {
     this.contact = new ContactModule(this);
     this.upload = new UploadModule(this);
     this.brands = new BrandsModule(this);
+    this.marketing = new MarketingModule(this);
+    this.affiliates = new AffiliatesModule(this);
+    this.tax = new TaxModule(this);
+    this.coa = new CoaModule(this);
+    this.legal = new LegalModule(this);
 
     // Inject footer branding (required)
     if (typeof window !== "undefined") {
@@ -129,6 +140,36 @@ export class DashClient {
   }
 
   /**
+   * Get the current session ID for analytics tracking.
+   * Tries PostHog session ID first, then falls back to a generated ID stored in sessionStorage.
+   * @returns {string} Session ID or empty string on server
+   */
+  getSessionId() {
+    if (this._sessionId) return this._sessionId;
+    if (typeof window !== "undefined" && window.posthog) {
+      const id = window.posthog.get_session_id?.();
+      if (id) return id;
+    }
+    if (typeof window !== "undefined") {
+      let id = sessionStorage.getItem("dash4devs_session_id");
+      if (!id) {
+        id = "ds_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        sessionStorage.setItem("dash4devs_session_id", id);
+      }
+      return id;
+    }
+    return "";
+  }
+
+  /**
+   * Manually set the session ID (e.g., from PostHog or your own tracking)
+   * @param {string} id - Session ID to use
+   */
+  setSessionId(id) {
+    this._sessionId = id;
+  }
+
+  /**
    * Internal fetch wrapper
    * @private
    */
@@ -139,6 +180,12 @@ export class DashClient {
       ...options.headers,
     };
 
+    // Include session ID if available (client-side only)
+    if (typeof window !== "undefined") {
+      const sessionId = this.getSessionId();
+      if (sessionId) headers["X-Session-Id"] = sessionId;
+    }
+
     const response = await fetch(url, {
       ...options,
       headers,
@@ -147,7 +194,7 @@ export class DashClient {
     const data = await response.json();
 
     if (!response.ok) {
-      const error = new Error(data.error || data.message || "API request failed");
+      const error = new Error(data.message || data.error || "API request failed");
       error.status = response.status;
       error.details = data;
       throw error;
@@ -232,6 +279,11 @@ export { TrackingModule } from "./services/tracking.js";
 export { ContactModule } from "./services/contact.js";
 export { UploadModule } from "./services/upload.js";
 export { BrandsModule } from "./services/brands.js";
+export { MarketingModule } from "./services/marketing.js";
+export { AffiliatesModule } from "./services/affiliates.js";
+export { TaxModule } from "./services/tax.js";
+export { CoaModule } from "./services/coa.js";
+export { LegalModule } from "./services/legal.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";

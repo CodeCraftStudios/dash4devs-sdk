@@ -77,7 +77,7 @@ export class CheckoutModule {
    * @returns {Promise<Object>} Order data, customer, auth tokens (guest only)
    */
   async complete(data) {
-    const { cartId, email, code, shipping, customerNotes } = data;
+    const { cartId, email, code, shipping, customerNotes, payment } = data;
     if (!cartId || !shipping) {
       throw new Error("cartId and shipping are required");
     }
@@ -96,6 +96,7 @@ export class CheckoutModule {
     };
     if (email) body.email = email;
     if (code) body.code = code;
+    if (payment) body.payment = payment;
 
     const url = `${this.client.baseURL}/api/storefront/checkout/complete`;
     return this.client._fetch(url, {

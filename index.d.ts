@@ -37,6 +37,8 @@ export interface ProductSize {
   weight: string | null;
   /** Weight unit (g, oz, lb, etc.) */
   weight_unit: string;
+  /** Cannabinoid classification for state-level tax calculation */
+  cannabinoid_type: "general" | "cbd" | "delta8" | "delta9" | "thca" | "hhc";
   /** Bulk discount tiers for this size */
   bulk_discounts?: BulkDiscount[];
 }
@@ -210,6 +212,7 @@ export interface CartItem {
   quantity: number;
   unit_price: string;
   total_price: string;
+  cannabinoid_type: string;
 }
 
 // =============================================================================
@@ -609,6 +612,26 @@ declare class BrandsModule {
   get(slug: string, options?: BrandGetOptions): Promise<BrandDetailResponse>;
 }
 
+export interface MarketingConfig {
+  active: boolean;
+  provider: { slug: string; name: string } | null;
+  config?: Record<string, string>;
+}
+
+declare class MarketingModule {
+  /**
+   * Initialize marketing scripts (e.g. Klaviyo onsite JS).
+   * Fetches email provider config and injects the appropriate script tag.
+   * Safe to call multiple times — only runs once.
+   */
+  init(): Promise<MarketingConfig>;
+
+  /**
+   * Get the cached config (call init() first).
+   */
+  getConfig(): MarketingConfig | null;
+}
+
 declare class CartModule {
   /** Current cart ID */
   readonly cartId: string | null;
@@ -749,7 +772,7 @@ declare class AuthModule {
    * Request OTP code via email
    * @param email - Customer email address
    */
-  requestOTP(email: string): Promise<{ message: string; email: string }>;
+  requestOTP(email: string, options?: { accepts_marketing?: boolean }): Promise<{ message: string; email: string }>;
 
   /**
    * Verify OTP and get tokens
@@ -1298,6 +1321,417 @@ declare class CheckoutModule {
 }
 
 // =============================================================================
+// SHIPPING MODULE
+// =============================================================================
+
+/** A single shipping rate option returned by the shipping provider */
+export interface ShippingRate {
+  /** Human-readable service name (e.g., "USPS Priority Mail") */
+  serviceName: string;
+  /** Service code for creating labels (e.g., "usps_priority_mail") */
+  serviceCode: string;
+  /** Base shipping cost */
+  shipmentCost: number;
+  /** Additional costs (insurance, surcharges, etc.) */
+  otherCost: number;
+  /** Estimated transit days (null if unknown) */
+  transitDays: number | null;
+  /** Computed total cost (shipmentCost + otherCost), added by helper methods */
+  totalCost?: number;
+  /** Additional provider-specific fields */
+  [key: string]: any;
+}
+
+export interface ShippingRateOptions {
+  /** Carrier code (e.g., "stamps_com", "fedex", "ups") */
+  carrier_code?: string;
+  /** Carrier IDs (e.g., ["se-xxxxxx"]) */
+  carrier_ids?: string[];
+  /** Service type filter (e.g., "ups_ground", "usps_priority_mail") */
+  service_type?: string;
+  /** Origin zip code */
+  from_postal?: string;
+  /** Full origin address object */
+  from_address?: Record<string, string>;
+  /** Destination state abbreviation (e.g., "CA") */
+  to_state?: string;
+  /** Destination country code (default: "US") */
+  to_country?: string;
+  /** Destination zip code */
+  to_postal: string;
+  /** Package weight in ounces */
+  weight_oz: number;
+  /** Package dimensions */
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+    units?: string;
+  };
+}
+
+export interface ShippingRateResult {
+  /** The selected rate (cheapest or fastest) */
+  rate: ShippingRate | null;
+  /** All available rates, sorted by the selection criteria */
+  all_rates: ShippingRate[];
+}
+
+export interface ShippingGetRateOptions extends ShippingRateOptions {
+  /** Rate selection preference (default: "cheapest") */
+  prefer?: "cheapest" | "fastest";
+}
+
+export interface FreeShippingCheck {
+  /** Whether the subtotal meets the free shipping threshold */
+  qualifies: boolean;
+  /** The free shipping threshold (null if not configured) */
+  threshold: number | null;
+  /** Amount remaining to qualify for free shipping */
+  remaining: number;
+}
+
+export interface TrackingResult {
+  tracking_number: string;
+  carrier_code: string;
+  tracking_url: string;
+}
+
+export declare class ShippingModule {
+  /**
+   * Get all available shipping rates for a package.
+   * Returns the raw list of rate options from the shipping provider.
+   *
+   * @example
+   * const { rates } = await dash.shipping.getRates({
+   *   carrier_code: "stamps_com",
+   *   to_state: "CA",
+   *   to_postal: "90210",
+   *   weight_oz: 16,
+   * });
+   */
+  getRates(options: ShippingRateOptions): Promise<{ rates: ShippingRate[] }>;
+
+  /**
+   * Track a shipment by tracking number.
+   *
+   * @example
+   * const tracking = await dash.shipping.track("1Z999AA10123456784", "ups");
+   * console.log(tracking.tracking_url);
+   */
+  track(trackingNumber: string, carrierCode?: string): Promise<TrackingResult>;
+
+  /**
+   * Get the cheapest shipping rate for a package.
+   * Fetches all rates and returns the one with the lowest total cost.
+   *
+   * @example
+   * const { rate } = await dash.shipping.getCheapestRate({
+   *   carrier_code: "stamps_com",
+   *   to_postal: "10001",
+   *   weight_oz: 8,
+   * });
+   * console.log(rate.serviceName);  // "USPS First Class Mail"
+   * console.log(rate.totalCost);    // 4.25
+   */
+  getCheapestRate(options: ShippingRateOptions): Promise<ShippingRateResult>;
+
+  /**
+   * Get the fastest shipping rate for a package.
+   * Fetches all rates and returns the one with fewest transit days.
+   * Ties broken by lowest cost.
+   *
+   * @example
+   * const { rate } = await dash.shipping.getFastestRate({
+   *   carrier_code: "fedex",
+   *   to_postal: "73301",
+   *   weight_oz: 32,
+   * });
+   * console.log(rate.serviceName);  // "FedEx 2Day"
+   * console.log(rate.transitDays);  // 2
+   */
+  getFastestRate(options: ShippingRateOptions): Promise<ShippingRateResult>;
+
+  /**
+   * Get a single recommended shipping rate.
+   * Returns cheapest by default, or fastest if prefer="fastest".
+   *
+   * @example
+   * const rate = await dash.shipping.getRate({
+   *   carrier_code: "stamps_com",
+   *   to_postal: "90210",
+   *   weight_oz: 16,
+   * });
+   */
+  getRate(options: ShippingGetRateOptions): Promise<ShippingRate | null>;
+
+  /**
+   * Check if an order qualifies for free shipping based on store config.
+   *
+   * @example
+   * const result = await dash.shipping.checkFreeShipping(cart.subtotal);
+   * if (!result.qualifies) {
+   *   console.log(`Add $${result.remaining.toFixed(2)} more for free shipping`);
+   * }
+   */
+  checkFreeShipping(subtotal: number | string): Promise<FreeShippingCheck>;
+}
+
+// =============================================================================
+// TAX MODULE
+// =============================================================================
+
+export interface TaxCalculateOptions {
+  /** Two-letter US state code (e.g., "CA") */
+  state: string;
+  /** Cart ID to calculate tax for */
+  cart_id?: string;
+  /** Manual items list (alternative to cart_id) */
+  items?: Array<{
+    price: number;
+    quantity: number;
+    cannabinoid_type?: string;
+  }>;
+}
+
+export interface TaxBreakdownItem {
+  cannabinoid_type: string;
+  rate: string | null;
+  special_tax_rate: string;
+  special_tax_name?: string;
+  tax_amount: string;
+  illegal?: boolean;
+}
+
+export interface TaxCalculateResponse {
+  state_code: string;
+  state_name: string;
+  tax_breakdown: TaxBreakdownItem[];
+  total_tax: string;
+  is_legal: boolean;
+  illegal_items: Array<{ cannabinoid_type: string; message: string }>;
+  fallback: boolean;
+}
+
+export interface TaxLegalityCheck {
+  /** Whether all items are legal in the state */
+  legal: boolean;
+  /** Details about illegal items */
+  illegal_items: Array<{ cannabinoid_type: string; message: string }>;
+  /** Full state name */
+  state_name: string;
+  /** Two-letter state code */
+  state_code: string;
+}
+
+export interface TaxOrderTotal {
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  tax: number;
+  total: number;
+}
+
+export interface TaxOrderTotalParams {
+  /** Cart subtotal */
+  subtotal: number | string;
+  /** Shipping cost (default: 0) */
+  shipping?: number | string;
+  /** Discount amount as positive number (default: 0) */
+  discount?: number | string;
+  /** Result from calculate() */
+  taxResult: TaxCalculateResponse;
+}
+
+export interface TaxBreakdownLine {
+  /** Human-readable label (e.g., "State Tax (delta9)") */
+  label: string;
+  /** Tax amount as string (e.g., "3.50") */
+  amount: string;
+  /** Tax rate as string with % (e.g., "7.25%") */
+  rate: string;
+}
+
+export declare class TaxModule {
+  /**
+   * Calculate tax for items in a given state.
+   * Supports per-cannabinoid tax rates when state configs are available.
+   * Falls back to flat org tax rate when no state configs exist.
+   *
+   * @example
+   * const result = await dash.tax.calculate({ state: "CA", cart_id: dash.cart.cartId });
+   * console.log(result.total_tax);  // "12.50"
+   * console.log(result.is_legal);   // true
+   */
+  calculate(options: TaxCalculateOptions): Promise<TaxCalculateResponse>;
+
+  /**
+   * Calculate tax for the current cart in a given state.
+   * Automatically uses the cart module's cart ID.
+   *
+   * @example
+   * const result = await dash.tax.calculateForCart("NY");
+   * console.log(result.total_tax);  // "8.50"
+   */
+  calculateForCart(state: string): Promise<TaxCalculateResponse>;
+
+  /**
+   * Check if all items are legal to sell in a given state.
+   * Returns a simple boolean + details about illegal items.
+   *
+   * @example
+   * const check = await dash.tax.checkLegality("ID");
+   * if (!check.legal) {
+   *   check.illegal_items.forEach(item => console.log(item.message));
+   * }
+   */
+  checkLegality(state: string, options?: Omit<TaxCalculateOptions, "state">): Promise<TaxLegalityCheck>;
+
+  /**
+   * Parse the total tax amount from a calculation result as a number.
+   *
+   * @example
+   * const taxAmount = dash.tax.getTotal(result);  // 12.50
+   */
+  getTotal(taxResult: TaxCalculateResponse): number;
+
+  /**
+   * Calculate the complete order total with subtotal, shipping, discount, and tax.
+   *
+   * @example
+   * const totals = dash.tax.getOrderTotal({
+   *   subtotal: cart.subtotal,
+   *   shipping: shippingRate.totalCost,
+   *   discount: 5.00,
+   *   taxResult,
+   * });
+   * console.log(totals.total);  // 112.75
+   */
+  getOrderTotal(params: TaxOrderTotalParams): TaxOrderTotal;
+
+  /**
+   * Format a tax breakdown into human-readable lines for display in checkout UI.
+   *
+   * @example
+   * const lines = dash.tax.formatBreakdown(result);
+   * // [{ label: "State Tax (general)", amount: "3.50", rate: "7.25%" }]
+   */
+  formatBreakdown(taxResult: TaxCalculateResponse): TaxBreakdownLine[];
+
+  /**
+   * Get a cached tax result if available.
+   */
+  getCached(state: string, cartId?: string): TaxCalculateResponse | null;
+
+  /**
+   * Clear the tax result cache.
+   * Call this when cart contents change.
+   */
+  clearCache(): void;
+}
+
+// =============================================================================
+// COA (Certificate of Analysis) MODULE
+// =============================================================================
+
+export interface CoaProduct {
+  id: string;
+  name: string;
+  slug: string;
+  image: string | null;
+  variation_count: number;
+}
+
+export interface CoaListResponse {
+  products: CoaProduct[];
+  total_products: number;
+}
+
+export interface CoaVariation {
+  id: string;
+  name: string;
+  slug: string;
+  image: string | null;
+  lab_report_url: string | null;
+}
+
+export interface CoaProductResponse {
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    image: string | null;
+  };
+  variations: CoaVariation[];
+  total_variations: number;
+}
+
+export interface CoaDetailResponse {
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    show_sizes_and_variations: boolean;
+  };
+  variation: {
+    id: string;
+    name: string;
+    slug: string;
+    image: string | null;
+    lab_report_url: string | null;
+  };
+}
+
+export declare class CoaModule {
+  constructor(client: DashClient);
+
+  /** List products that have at least one variation with a lab-report file */
+  list(options?: { q?: string }): Promise<CoaListResponse>;
+
+  /** Get a product and its variations that have COA files */
+  getProduct(productSlug: string): Promise<CoaProductResponse>;
+
+  /** Get a single variation's COA detail (lab report URL) */
+  getVariation(productSlug: string, variationSlug: string): Promise<CoaDetailResponse>;
+}
+
+// =============================================================================
+// LEGAL DOCUMENT TYPES
+// =============================================================================
+
+export interface LegalDocumentListItem {
+  title: string;
+  slug: string;
+  updated_at: string;
+}
+
+export interface LegalDocumentDetail {
+  title: string;
+  slug: string;
+  content: string;
+  updated_at: string;
+}
+
+export interface LegalDocumentsListResponse {
+  documents: LegalDocumentListItem[];
+}
+
+export interface LegalDocumentResponse {
+  document: LegalDocumentDetail;
+}
+
+export declare class LegalModule {
+  constructor(client: DashClient);
+
+  /** List all published legal documents (title, slug, updated_at) */
+  list(): Promise<LegalDocumentsListResponse>;
+
+  /** Get a single legal document by slug (full content) */
+  get(slug: string): Promise<LegalDocumentResponse>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -1343,6 +1777,21 @@ export declare class DashClient {
   /** Brands API */
   readonly brands: BrandsModule;
 
+  /** Marketing script injection (Klaviyo onsite JS, etc.) */
+  readonly marketing: MarketingModule;
+
+  /** Shipping rate lookup, comparison, and tracking */
+  readonly shipping: ShippingModule;
+
+  /** Tax calculation API */
+  readonly tax: TaxModule;
+
+  /** COA / Lab Reports API */
+  readonly coa: CoaModule;
+
+  /** Legal Documents API */
+  readonly legal: LegalModule;
+
   /**
    * Health check - validates API key and returns organization info
    */
@@ -1376,6 +1825,12 @@ export declare class DashClient {
    * console.log(global.business_email);   // "contact@mystore.com"
    */
   getGlobalData(): Promise<GlobalDataResponse>;
+
+  /** Get the current session ID used for analytics tracking */
+  getSessionId(): string;
+
+  /** Manually set the session ID (e.g., from PostHog or your own tracking) */
+  setSessionId(id: string): void;
 }
 
 export default DashClient;

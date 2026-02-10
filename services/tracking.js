@@ -21,6 +21,9 @@ export class TrackingModule {
     this._debugOverlay = null;
     this._debugLogs = [];
     this._eventCount = 0;
+    this._customerId = null;
+    this._autoPageviewsEnabled = false;
+    this._lastTrackedPath = null;
   }
 
   /**
@@ -108,6 +111,86 @@ export class TrackingModule {
       this._log("Identity reset");
       this._updateOverlay();
     }
+    this._customerId = null;
+  }
+
+  /**
+   * Set the authenticated customer ID so that trackVisit() automatically
+   * links visits to this customer in the backend.
+   * @param {string} customerId - Customer ID from auth context
+   */
+  setCustomer(customerId) {
+    this._customerId = customerId || null;
+    if (customerId) {
+      this._log(`Customer set: ${customerId}`);
+    }
+  }
+
+  /**
+   * Clear the stored customer ID (e.g. on logout).
+   */
+  clearCustomer() {
+    this._customerId = null;
+    this._log("Customer cleared");
+  }
+
+  /**
+   * Enable automatic pageview tracking for SPA route changes.
+   * Intercepts History pushState/replaceState and the popstate event
+   * to fire a PostHog pageview + backend trackVisit on every navigation.
+   *
+   * Call once after init():
+   *   await dash.tracking.init();
+   *   dash.tracking.enableAutoPageviews();
+   */
+  enableAutoPageviews() {
+    if (typeof window === "undefined" || this._autoPageviewsEnabled) return;
+    this._autoPageviewsEnabled = true;
+    this._lastTrackedPath = window.location.pathname + window.location.search;
+
+    const onRouteChange = () => {
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath === this._lastTrackedPath) return;
+      this._lastTrackedPath = currentPath;
+      this.pageview();
+      this.trackVisit();
+    };
+
+    // Monkey-patch pushState and replaceState
+    const origPush = history.pushState.bind(history);
+    const origReplace = history.replaceState.bind(history);
+
+    history.pushState = (...args) => {
+      origPush(...args);
+      // defer so the URL has updated
+      setTimeout(onRouteChange, 0);
+    };
+    history.replaceState = (...args) => {
+      origReplace(...args);
+      setTimeout(onRouteChange, 0);
+    };
+
+    window.addEventListener("popstate", () => {
+      setTimeout(onRouteChange, 0);
+    });
+
+    this._log("Auto-pageviews enabled");
+  }
+
+  /**
+   * Notify tracking of a route change (for frameworks like Next.js).
+   * Call this from your router's pathname change handler.
+   * Fires a PostHog pageview + backend trackVisit if the path actually changed.
+   *
+   * @param {string} [pathname] - The new pathname (defaults to window.location)
+   */
+  notifyRouteChange(pathname) {
+    if (typeof window === "undefined") return;
+    const currentPath = pathname || (window.location.pathname + window.location.search);
+    if (currentPath === this._lastTrackedPath) return;
+    this._lastTrackedPath = currentPath;
+    this.pageview(currentPath);
+    this.trackVisit();
   }
 
   /**
@@ -135,6 +218,67 @@ export class TrackingModule {
       this._eventCount++;
       this._log(`Pageview: ${path || window.location.pathname}`);
       this._updateOverlay();
+    }
+  }
+
+  /**
+   * Track a storefront visit with UTM parameters.
+   * Automatically reads utm_source, utm_medium, utm_campaign, utm_term,
+   * utm_content from the current URL query string and sends them to the API.
+   *
+   * If a customer ID has been set via `setCustomer()`, it is automatically
+   * included so visits are linked to the customer in the dashboard.
+   *
+   * @param {Object} [options] - Optional overrides
+   * @param {string} [options.customer_id] - Customer ID if authenticated
+   * @param {string} [options.session_id] - Session ID override
+   * @returns {Promise<{success: boolean}>}
+   *
+   * @example
+   * // On page load:
+   * await dash.tracking.trackVisit();
+   *
+   * // With authenticated customer:
+   * await dash.tracking.trackVisit({ customer_id: "cust_abc123" });
+   */
+  async trackVisit(options = {}) {
+    if (typeof window === "undefined") return { success: false };
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const utm_source = params.get("utm_source") || "";
+      const utm_medium = params.get("utm_medium") || "";
+      const utm_campaign = params.get("utm_campaign") || "";
+      const utm_term = params.get("utm_term") || "";
+      const utm_content = params.get("utm_content") || "";
+
+      // Auto-include stored customer ID and PostHog session ID
+      const sessionId = options.session_id || (this._engine?.get_session_id?.() || "");
+      const customerId = options.customer_id || this._customerId || "";
+
+      const body = {
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        utm_term,
+        utm_content,
+        landing_page: window.location.href,
+        referrer: document.referrer || "",
+        session_id: sessionId,
+        customer_id: customerId,
+      };
+
+      const url = `${this.client.baseURL}/api/storefront/analytics/track-visit`;
+      const data = await this.client._fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+
+      this._log(`Visit tracked: ${window.location.pathname}${customerId ? ` (customer: ${customerId.slice(0, 8)}...)` : ""}`);
+      return data;
+    } catch (err) {
+      this._log(`trackVisit failed: ${err.message}`, "error");
+      return { success: false };
     }
   }
 
@@ -234,23 +378,26 @@ export class TrackingModule {
         autocapture: true,
         session_recording: {
           recordCrossOriginIframes: true,
-          maskAllInputs: true,
-          maskTextSelector: ".ph-no-capture",
+          // Only mask specific input types — NOT all inputs, so recordings stay useful
+          maskAllInputs: false,
+          maskTextSelector: ".ph-no-capture, [data-ph-no-capture]",
+          maskInputSelector: ".ph-no-capture input, [data-ph-no-capture] input, input[autocomplete*='cc-'], input[name*='card'], input[name*='cvv'], input[name*='cvc'], input[name*='expir']",
           maskInputOptions: {
             password: true,
-            color: false,
-            date: false,
-            "datetime-local": false,
-            email: true,
-            month: false,
-            number: false,
-            range: false,
-            search: false,
-            tel: true,
-            text: false,
-            time: false,
-            url: false,
-            week: false,
+          },
+          networkPayloadCapture: {
+            recordHeaders: true,
+            recordBody: (data) => {
+              // Strip payment/checkout endpoint bodies
+              const url = (data.url || data.name || "").toLowerCase();
+              const blocked = [
+                "/payment", "/checkout", "/charge", "/token",
+                "stripe.com", "braintree", "paypal", "square",
+                "/api/storefront/payment",
+              ];
+              if (blocked.some((p) => url.includes(p))) return null;
+              return data.body;
+            },
           },
         },
         enable_recording_console_log: true,

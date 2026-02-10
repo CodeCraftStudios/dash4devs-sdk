@@ -239,6 +239,81 @@ export class CartModule {
   getTotalQuantity() {
     return this._items.reduce((sum, item) => sum + item.quantity, 0);
   }
+
+  /**
+   * Migrate guest cart to authenticated user's cart
+   * Call this after user logs in to merge their guest cart with their account
+   * @returns {Promise<{cart_id: string, items: Array, subtotal: string, item_count: number}>}
+   */
+  async migrateToUser() {
+    if (!this._cartId) {
+      return this.loadUserCart();
+    }
+
+    const token = this.client.auth?._accessToken;
+    if (!token) {
+      throw new Error("Authentication required for cart migration");
+    }
+
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/migrate`;
+    try {
+      const response = await this.client._fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.cart_id) {
+        this._cartId = response.cart_id;
+      }
+
+      await this.get();
+      return response;
+    } catch (error) {
+      console.error("Cart migration failed:", error);
+      this._cartId = null;
+      return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
+    }
+  }
+
+  /**
+   * Load user's cart after login (fetches cart associated with authenticated user)
+   * @returns {Promise<{cart_id: string, items: Array, subtotal: string, item_count: number}>}
+   */
+  async loadUserCart() {
+    const token = this.client.auth?._accessToken;
+    if (!token) {
+      throw new Error("Authentication required to load user cart");
+    }
+
+    const url = `${this.client.baseURL}/api/storefront/cart/user`;
+    try {
+      const response = await this.client._fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.cart_id) {
+        this._cartId = response.cart_id;
+        this._items = response.items || [];
+        this._subtotal = response.subtotal || "0.00";
+        this._itemCount = response.item_count || 0;
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Failed to load user cart:", error);
+      return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
+    }
+  }
+
+  /**
+   * Reset cart state (used on logout)
+   */
+  reset() {
+    this._cartId = null;
+    this._items = [];
+    this._subtotal = "0.00";
+    this._itemCount = 0;
+  }
 }
 
 export default CartModule;
