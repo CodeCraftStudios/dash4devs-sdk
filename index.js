@@ -73,8 +73,8 @@ export class DashClient {
     this.coa = new CoaModule(this);
     this.legal = new LegalModule(this);
 
-    // Inject footer branding (required)
-    if (typeof window !== "undefined") {
+    // Inject footer branding (skip in test mode)
+    if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
       this._injectFooterBranding();
     }
   }
