@@ -44,8 +44,8 @@ export interface ProductSize {
 }
 
 /**
- * Selectable variation for products with show_sizes_and_variations=true
- * Each variation has its own sizes with pricing
+ * Selectable variation for products with variations.
+ * Each variation has its own sizes with pricing.
  */
 export interface SelectableVariation {
   id: string;
@@ -89,21 +89,17 @@ export interface Product {
   description?: string;
 
   /**
-   * Determines product page UI mode:
-   * - true: Shows variation selector + size selector (dual mode)
-   * - false: Shows only size selector (simple mode)
+   * Whether this product has variations (auto-detected from active attribute options)
    */
-  show_sizes_and_variations?: boolean;
+  has_variations?: boolean;
 
   /**
-   * Selectable variations (when show_sizes_and_variations=true)
-   * Each variation has its own sizes with pricing
+   * Selectable variations with their own sizes and pricing
    */
   selectable_variations?: SelectableVariation[] | null;
 
   /**
-   * Direct sizes (when show_sizes_and_variations=false)
-   * These are sizes not linked to any variation
+   * Direct sizes (not linked to any variation)
    */
   sizes?: ProductSize[];
 
@@ -1672,7 +1668,7 @@ export interface CoaDetailResponse {
     id: string;
     name: string;
     slug: string;
-    show_sizes_and_variations: boolean;
+    selectable_variations?: { slug: string }[] | null;
   };
   variation: {
     id: string;
