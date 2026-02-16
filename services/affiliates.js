@@ -52,6 +52,69 @@ export class AffiliatesModule {
       body: JSON.stringify(data),
     });
   }
+
+  /**
+   * Get current customer's affiliate status
+   * Requires authentication (Bearer token)
+   * @returns {Promise<{is_affiliate: boolean, has_pending_request: boolean, request_status: string|null, rejection_reason: string|null}>}
+   */
+  async getMyStatus() {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/status`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /**
+   * Get affiliate dashboard data for the current customer
+   * Requires authentication + approved affiliate status
+   * @returns {Promise<{tier_name: string, commission_rate: number, total_orders: number, total_revenue: string, total_earned: string, paypal_email: string, discount_codes: Array}>}
+   */
+  async getMyDashboard() {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/dashboard`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /**
+   * Create a discount code as an affiliate
+   * Requires authentication + approved affiliate status
+   * @param {Object} data
+   * @param {string} data.code - The code to create (3-50 chars, alphanumeric + hyphens/underscores)
+   * @returns {Promise<{success: boolean, message: string, discount_code: Object}>}
+   */
+  async createCode(data) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/create-code`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Deactivate one of the affiliate's own discount codes (one-way)
+   * Requires authentication + approved affiliate status
+   * @param {string} codeId - The discount code ID to deactivate
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async deactivateCode(codeId) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/deactivate-code`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code_id: codeId }),
+    });
+  }
 }
 
 export default AffiliatesModule;

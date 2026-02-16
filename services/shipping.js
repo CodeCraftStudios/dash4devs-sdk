@@ -51,6 +51,7 @@ export class ShippingModule {
     const {
       carrier_code, carrier_ids, service_type,
       from_postal, from_address,
+      to_address_line1, to_city, to_name,
       to_state, to_country, to_postal,
       weight_oz, dimensions,
     } = options;
@@ -68,6 +69,11 @@ export class ShippingModule {
       to_country: to_country || "US",
       weight_oz,
     };
+
+    // Destination address details (needed by ShipEngine for accurate rates)
+    if (to_address_line1) body.to_address_line1 = to_address_line1;
+    if (to_city) body.to_city = to_city;
+    if (to_name) body.to_name = to_name;
 
     // Carrier identification
     if (carrier_code) body.carrier_code = carrier_code;
@@ -111,6 +117,47 @@ export class ShippingModule {
     }
     return this.client._fetch(url, {
       method: "GET",
+    });
+  }
+
+  /**
+   * Validate and normalize a shipping address via ShipEngine.
+   * Returns the validation status, the original address, the matched
+   * (normalized) address, and any messages from the provider.
+   *
+   * @param {Object} address
+   * @param {string} address.address_line1 - Street address
+   * @param {string} address.city - City name
+   * @param {string} address.state - State abbreviation (e.g. "CA")
+   * @param {string} address.postal_code - ZIP / postal code
+   * @param {string} [address.country_code="US"] - Country code
+   * @returns {Promise<{status: string, original_address: Object, matched_address: Object, messages: string[]}>}
+   *
+   * @example
+   * const result = await dash.shipping.validateAddress({
+   *   address_line1: "123 Main St",
+   *   city: "New York",
+   *   state: "NY",
+   *   postal_code: "10001",
+   * });
+   * if (result.status === "verified") {
+   *   console.log(result.matched_address);
+   * }
+   */
+  async validateAddress(address) {
+    const { address_line1, city, state, postal_code, country_code } = address;
+
+    if (!address_line1 || !city || !state || !postal_code) {
+      throw new Error("address_line1, city, state, and postal_code are required");
+    }
+
+    const body = { address_line1, city, state, postal_code };
+    if (country_code) body.country_code = country_code;
+
+    const url = `${this.client.baseURL}/api/storefront/shipping/validate-address`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   }
 

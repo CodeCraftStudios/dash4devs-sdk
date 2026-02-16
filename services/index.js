@@ -12,3 +12,4 @@ export { SeoModule } from "./seo.js";
 export { AuthModule } from "./auth.js";
 export { BlogModule } from "./blog.js";
 export { CheckoutModule } from "./checkout.js";
+export { MediaModule } from "./media.js";

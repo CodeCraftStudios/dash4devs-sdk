@@ -92,6 +92,9 @@ export class AuthModule {
     if (options.accepts_marketing !== undefined) {
       body.accepts_marketing = options.accepts_marketing;
     }
+    if (options.captcha_token) {
+      body.captcha_token = options.captcha_token;
+    }
 
     const url = `${this.client.baseURL}/api/storefront/auth/request-otp`;
     return this.client._fetch(url, {
@@ -136,16 +139,19 @@ export class AuthModule {
    * @returns {Promise<{access_token: string, refresh_token: string, customer: Object}>}
    */
   async login(options) {
-    const { email, password } = options;
+    const { email, password, captcha_token } = options;
 
     if (!email || !password) {
       throw new Error("email and password are required");
     }
 
+    const body = { email, password };
+    if (captcha_token) body.captcha_token = captcha_token;
+
     const url = `${this.client.baseURL}/api/storefront/auth/login`;
     const response = await this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
 
     this._customer = response.customer;

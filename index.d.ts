@@ -39,6 +39,8 @@ export interface ProductSize {
   weight_unit: string;
   /** Cannabinoid classification for state-level tax calculation */
   cannabinoid_type: "general" | "cbd" | "delta8" | "delta9" | "thca" | "hhc";
+  /** Loyalty points earned per unit purchased */
+  points: number;
   /** Bulk discount tiers for this size */
   bulk_discounts?: BulkDiscount[];
 }
@@ -723,6 +725,8 @@ export interface Customer {
   has_address: boolean;
   address: CustomerAddress | null;
   accepts_marketing: boolean;
+  /** Loyalty points balance */
+  points: number;
   metadata: Record<string, any> | null;
   created_at: string;
 }
@@ -1243,13 +1247,27 @@ export interface CheckoutCompleteData {
   /** Cart ID */
   cartId: string;
   /** Customer email */
-  email: string;
+  email?: string;
   /** 6-digit OTP verification code */
-  code: string;
+  code?: string;
   /** Shipping address */
   shipping: CheckoutShipping;
   /** Optional order notes */
   customerNotes?: string;
+  /** Payment authorization data */
+  payment?: {
+    transaction_id: string;
+    auth_code: string;
+    fraud_held?: boolean;
+    posthog_session_id?: string;
+  };
+  /** Frontend-calculated totals to override server-side calculation */
+  totals?: {
+    shipping_cost: number;
+    tax_amount: number;
+  };
+  /** Captcha token for bot protection */
+  captcha_token?: string;
 }
 
 export interface CheckoutOrderItem {
@@ -1349,6 +1367,12 @@ export interface ShippingRateOptions {
   from_postal?: string;
   /** Full origin address object */
   from_address?: Record<string, string>;
+  /** Destination street address (needed for accurate rates) */
+  to_address_line1?: string;
+  /** Destination city (needed for accurate rates) */
+  to_city?: string;
+  /** Destination recipient name */
+  to_name?: string;
   /** Destination state abbreviation (e.g., "CA") */
   to_state?: string;
   /** Destination country code (default: "US") */
@@ -1393,6 +1417,41 @@ export interface TrackingResult {
   tracking_url: string;
 }
 
+export interface AddressValidationInput {
+  /** Street address line 1 */
+  address_line1: string;
+  /** City name */
+  city: string;
+  /** State abbreviation (e.g. "CA") */
+  state: string;
+  /** ZIP / postal code */
+  postal_code: string;
+  /** Country code (default: "US") */
+  country_code?: string;
+}
+
+export interface AddressValidationResult {
+  /** Validation status from the shipping provider */
+  status: "verified" | "unverified" | "warning";
+  /** The original address as submitted */
+  original_address: {
+    address_line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+  };
+  /** The normalized/corrected address from the provider */
+  matched_address: {
+    address_line1: string;
+    city_locality: string;
+    state_province: string;
+    postal_code: string;
+    country_code: string;
+  };
+  /** Informational or warning messages from the provider */
+  messages: string[];
+}
+
 export declare class ShippingModule {
   /**
    * Get all available shipping rates for a package.
@@ -1407,6 +1466,19 @@ export declare class ShippingModule {
    * });
    */
   getRates(options: ShippingRateOptions): Promise<{ rates: ShippingRate[] }>;
+
+  /**
+   * Validate and normalize a shipping address via ShipEngine.
+   *
+   * @example
+   * const result = await dash.shipping.validateAddress({
+   *   address_line1: "123 Main St",
+   *   city: "New York",
+   *   state: "NY",
+   *   postal_code: "10001",
+   * });
+   */
+  validateAddress(address: AddressValidationInput): Promise<AddressValidationResult>;
 
   /**
    * Track a shipment by tracking number.
@@ -1728,6 +1800,66 @@ export declare class LegalModule {
 }
 
 // =============================================================================
+// MEDIA MODULE
+// =============================================================================
+
+export interface MediaItem {
+  id: string;
+  name: string;
+  url: string;
+  alt_text: string;
+  file_type: string;
+  mime_type: string;
+  width: number | null;
+  height: number | null;
+  tags: string[];
+}
+
+export interface MediaFolderResponse {
+  folder: string;
+  items: MediaItem[];
+}
+
+export declare class MediaModule {
+  constructor(client: DashClient);
+
+  /**
+   * Get all media files within a named folder
+   * @param folderName - The folder name (e.g. "gallery_01")
+   *
+   * @example
+   * const { items } = await dash.media.getFolder("gallery_01");
+   * items.forEach(img => console.log(img.url));
+   */
+  getFolder(folderName: string): Promise<MediaFolderResponse>;
+}
+
+export declare class EmailModule {
+  constructor(client: DashClient);
+
+  /**
+   * Identify/update a customer profile in the email provider (Klaviyo).
+   */
+  identify(options: {
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    properties?: Record<string, any>;
+  }): Promise<{ message: string }>;
+
+  /**
+   * Track an event in the email provider (Klaviyo).
+   * Events can trigger flows (order confirmations, abandoned cart, etc.)
+   */
+  track(options: {
+    email: string;
+    event: string;
+    properties?: Record<string, any>;
+  }): Promise<{ message: string }>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -1787,6 +1919,12 @@ export declare class DashClient {
 
   /** Legal Documents API */
   readonly legal: LegalModule;
+
+  /** Email/Marketing integration (Klaviyo) */
+  readonly email: EmailModule;
+
+  /** Media files API */
+  readonly media: MediaModule;
 
   /**
    * Health check - validates API key and returns organization info

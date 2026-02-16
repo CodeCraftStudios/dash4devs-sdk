@@ -26,6 +26,7 @@ import { AffiliatesModule } from "./services/affiliates.js";
 import { TaxModule } from "./services/tax.js";
 import { CoaModule } from "./services/coa.js";
 import { LegalModule } from "./services/legal.js";
+import { MediaModule } from "./services/media.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -72,6 +73,7 @@ export class DashClient {
     this.tax = new TaxModule(this);
     this.coa = new CoaModule(this);
     this.legal = new LegalModule(this);
+    this.media = new MediaModule(this);
 
     // Inject footer branding (skip in test mode)
     if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
@@ -179,6 +181,11 @@ export class DashClient {
       "Content-Type": "application/json",
       ...options.headers,
     };
+
+    // Include auth token if available (for customer-specific features like discounts)
+    if (this.auth && this.auth._accessToken && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${this.auth._accessToken}`;
+    }
 
     // Include session ID if available (client-side only)
     if (typeof window !== "undefined") {
