@@ -43,7 +43,7 @@ export class ProductsModule {
     if (options.offset) params.append("offset", options.offset);
     if (options.category) params.append("category", options.category);
     if (options.brand) params.append("brand", options.brand);
-    if (options.search) params.append("search", options.search);
+    if (options.search || options.q) params.append("search", options.search || options.q);
 
     // Include additional fields (e.g., main_size for pricing details)
     if (options.include && Array.isArray(options.include)) {
@@ -104,16 +104,9 @@ export class ProductsModule {
    * @param {string} [data.author_email] - Reviewer email (optional)
    * @param {string} [data.title] - Review title (optional)
    * @param {string} [data.body] - Review content (optional)
-   * @returns {Promise<{review: Object, message: string}>}
-   *
-   * @example
-   * await client.products.submitReview("blue-widget", {
-   *   rating: 5,
-   *   author_name: "John Doe",
-   *   author_email: "john@example.com",
-   *   title: "Great product!",
-   *   body: "This widget exceeded my expectations..."
-   * });
+   * @param {string} [data.variation_slug] - Variation slug (optional)
+   * @param {string[]} [data.media_urls] - Array of media URLs (optional)
+   * @returns {Promise<{review: Object}>}
    */
   async submitReview(slug, data) {
     const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}/reviews`;
@@ -121,6 +114,23 @@ export class ProductsModule {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * Get all approved reviews across all products
+   * @param {Object} options - Query options
+   * @param {number} [options.limit] - Number of reviews per page (default: 20)
+   * @param {number} [options.offset] - Pagination offset (default: 0)
+   * @returns {Promise<{reviews: Array, avg_rating: number, total: number, pagination: Object}>}
+   */
+  async getAllReviews(options = {}) {
+    const params = new URLSearchParams();
+    if (options.limit) params.append("limit", options.limit);
+    if (options.offset) params.append("offset", options.offset);
+    if (options.product) params.append("product", options.product);
+    const qs = params.toString();
+    const url = `${this.client.baseURL}/api/storefront/reviews${qs ? `?${qs}` : ""}`;
+    return this.client._fetch(url);
   }
 
   /**

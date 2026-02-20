@@ -50,21 +50,26 @@ export class CartModule {
    * @returns {Promise<{cart_id: string, item: Object}>}
    */
   async add(options) {
-    const { productId, sizeId, quantity = 1 } = options;
+    const { productId, sizeId, quantity = 1, freestyleSelections } = options;
 
     if (!productId || !sizeId) {
       throw new Error("productId and sizeId are required");
     }
 
+    const body = {
+      product_id: productId,
+      size_id: sizeId,
+      quantity,
+      cart_id: this._cartId,
+    };
+    if (freestyleSelections) {
+      body.freestyle_selections = freestyleSelections;
+    }
+
     const url = `${this.client.baseURL}/api/storefront/cart/add`;
     const response = await this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({
-        product_id: productId,
-        size_id: sizeId,
-        quantity,
-        cart_id: this._cartId,
-      }),
+      body: JSON.stringify(body),
     });
 
     // Update local state

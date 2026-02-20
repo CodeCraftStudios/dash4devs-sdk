@@ -70,6 +70,23 @@ export interface SelectableVariation {
 /**
  * Product with full details for product page rendering
  */
+export interface FreestyleSlotOption {
+  id: string;
+  product_name: string;
+  short_name?: string;
+  product_slug: string;
+  image: string | null;
+  variation_name: string | null;
+  size_label: string | null;
+  in_stock: boolean;
+}
+
+export interface FreestyleSlot {
+  id: string;
+  name: string;
+  options: FreestyleSlotOption[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -79,6 +96,8 @@ export interface Product {
   price: string | null;
   discounted_price: string | null;
   in_stock: boolean;
+  bundle_type?: string;
+  is_bundle?: boolean;
 
   /**
    * Maximum bulk discount percentage available for this product.
@@ -111,6 +130,11 @@ export interface Product {
   features?: { key: string; value: string }[];
   qna?: { question: string; answer: string }[];
   seo?: ProductSEO;
+
+  /** Bundle includes for fixed bundles */
+  includes?: any[] | null;
+  /** Freestyle bundle slots (only present for freestyle bundles) */
+  freestyle_slots?: FreestyleSlot[] | null;
 }
 
 /**
@@ -239,6 +263,12 @@ export interface ProductsListOptions {
   customFields?: Record<string, string | number | boolean>;
 }
 
+export interface ReviewMedia {
+  id: string;
+  file_url: string;
+  file_type: "image" | "video";
+}
+
 export interface ProductReview {
   id: string;
   rating: number;
@@ -247,6 +277,12 @@ export interface ProductReview {
   author_name: string;
   verified_purchase: boolean;
   created_at: string;
+  variation_name?: string;
+  variation_slug?: string;
+  product_name?: string;
+  product_slug?: string;
+  product_image?: string | null;
+  media?: ReviewMedia[];
 }
 
 export interface ProductReviewsResponse {
@@ -281,6 +317,22 @@ export interface SubmitReviewData {
   title?: string;
   /** Review content (optional) */
   body?: string;
+  /** Variation slug (optional) */
+  variation_slug?: string;
+  /** Array of uploaded media URLs (optional) */
+  media_urls?: string[];
+}
+
+export interface AllReviewsResponse {
+  reviews: ProductReview[];
+  avg_rating: number;
+  total: number;
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
 }
 
 export interface SubmitReviewResponse {
@@ -315,6 +367,8 @@ export interface CartAddOptions {
   sizeId: string;
   /** Quantity (default: 1) */
   quantity?: number;
+  /** Freestyle bundle selections (slot_id + option_id pairs) */
+  freestyleSelections?: { slot_id: string; option_id: string }[];
 }
 
 // =============================================================================
@@ -515,6 +569,11 @@ declare class ProductsModule {
    * @param data - Review data
    */
   submitReview(slug: string, data: SubmitReviewData): Promise<SubmitReviewResponse>;
+
+  /**
+   * Get all approved reviews across all products
+   */
+  getAllReviews(options?: { limit?: number; offset?: number }): Promise<AllReviewsResponse>;
 
   /**
    * Get featured variations (variations with show_in_bg custom field)
@@ -811,6 +870,11 @@ declare class AuthModule {
    * Get a single order by ID
    */
   getOrder(orderId: string): Promise<{ order: CheckoutOrder }>;
+
+  /**
+   * Check if current IP/session is banned
+   */
+  checkBan(): Promise<{ banned: boolean; reason?: string }>;
 
   /**
    * Set tokens manually (e.g., from localStorage on page load)
@@ -1860,6 +1924,52 @@ export declare class EmailModule {
 }
 
 // =============================================================================
+// DISCOUNT STORE TYPES
+// =============================================================================
+
+export interface DiscountStoreProduct {
+  id: string;
+  title: string;
+  description: string;
+  is_percentage: boolean;
+  rate: string;
+  min_subtotal: string | null;
+  max_subtotal: string | null;
+  point_cost: number;
+  display_order: number;
+}
+
+export interface DiscountStoreListResponse {
+  products: DiscountStoreProduct[];
+  customer_points: number | null;
+}
+
+export interface DiscountStoreRedeemResponse {
+  success: boolean;
+  discount_code: {
+    id: string;
+    code: string;
+    is_percentage: boolean;
+    rate: string;
+    min_subtotal: string | null;
+    max_subtotal: string | null;
+    valid_from: string | null;
+    valid_until: string | null;
+  };
+  points_remaining: number;
+}
+
+export declare class DiscountStoreModule {
+  constructor(client: DashClient);
+
+  /** List available discount store products (includes customer points if authenticated) */
+  list(): Promise<DiscountStoreListResponse>;
+
+  /** Redeem a product using loyalty points (requires auth) */
+  redeem(productId: string): Promise<DiscountStoreRedeemResponse>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -1926,6 +2036,9 @@ export declare class DashClient {
   /** Media files API */
   readonly media: MediaModule;
 
+  /** Discount Store (loyalty point redemption) */
+  readonly discountStore: DiscountStoreModule;
+
   /**
    * Health check - validates API key and returns organization info
    */
@@ -1968,3 +2081,24 @@ export declare class DashClient {
 }
 
 export default DashClient;
+
+// =============================================================================
+// REVALIDATION HANDLER (Next.js App Router)
+// =============================================================================
+
+export interface RevalidateHandlerOptions {
+  /** Shared secret that must match between backend and frontend */
+  secret: string | undefined;
+}
+
+/**
+ * Create a Next.js App Router POST handler for on-demand ISR revalidation.
+ * Validates a shared secret from the request body, then calls revalidatePath()
+ * for each path in the paths array.
+ *
+ * @example
+ * // app/api/revalidate/route.ts
+ * import { createRevalidateHandler } from "@/lib/dash4devs";
+ * export const POST = createRevalidateHandler({ secret: process.env.REVALIDATE_SECRET });
+ */
+export function createRevalidateHandler(options: RevalidateHandlerOptions): (request: Request) => Promise<Response>;

@@ -7,7 +7,7 @@
 // Allowed file extensions
 const ALLOWED_EXTENSIONS = new Set([
   // Images
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.bmp', '.ico', '.tiff', '.tif',
   // Documents
   '.pdf', '.txt', '.rtf',
   // Microsoft Office

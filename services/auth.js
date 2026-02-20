@@ -366,6 +366,19 @@ export class AuthModule {
   }
 
   /**
+   * Check if current IP/session is banned
+   * @returns {Promise<{banned: boolean, reason?: string}>}
+   */
+  async checkBan() {
+    const url = `${this.client.baseURL}/api/storefront/auth/check-ban`;
+    const headers = {};
+    if (this._accessToken) {
+      headers.Authorization = `Bearer ${this._accessToken}`;
+    }
+    return this.client._fetch(url, { headers });
+  }
+
+  /**
    * Associate a guest cart with authenticated customer
    * @param {string} cartId - Guest cart ID to merge
    * @returns {Promise<{cart: Object}>}

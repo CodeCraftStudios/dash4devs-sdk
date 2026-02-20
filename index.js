@@ -27,6 +27,8 @@ import { TaxModule } from "./services/tax.js";
 import { CoaModule } from "./services/coa.js";
 import { LegalModule } from "./services/legal.js";
 import { MediaModule } from "./services/media.js";
+import { ReferralsModule } from "./services/referrals.js";
+import { DiscountStoreModule } from "./services/discount-store.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -74,6 +76,8 @@ export class DashClient {
     this.coa = new CoaModule(this);
     this.legal = new LegalModule(this);
     this.media = new MediaModule(this);
+    this.referrals = new ReferralsModule(this);
+    this.discountStore = new DiscountStoreModule(this);
 
     // Inject footer branding (skip in test mode)
     if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
@@ -201,6 +205,12 @@ export class DashClient {
     const data = await response.json();
 
     if (!response.ok) {
+      // Auto-redirect to /banned on ban responses (client-side only)
+      if (response.status === 403 && data.error === "banned" && typeof window !== "undefined") {
+        const reason = data.reason ? `?reason=${encodeURIComponent(data.reason)}` : "";
+        window.location.href = `/banned${reason}`;
+      }
+
       const error = new Error(data.message || data.error || "API request failed");
       error.status = response.status;
       error.details = data;
@@ -270,6 +280,59 @@ export class DashClient {
   }
 }
 
+// =============================================================================
+// REVALIDATION HANDLER (Next.js App Router)
+// =============================================================================
+
+/**
+ * Create a Next.js App Router POST handler for on-demand ISR revalidation.
+ * Validates a shared secret, then calls revalidatePath() for each path.
+ *
+ * @param {Object} options
+ * @param {string} options.secret - Shared secret (must match backend REVALIDATE_SECRET)
+ * @returns {Function} POST handler for route.ts
+ *
+ * @example
+ * // app/api/revalidate/route.ts
+ * import { createRevalidateHandler } from "@/lib/dash4devs";
+ * export const POST = createRevalidateHandler({ secret: process.env.REVALIDATE_SECRET });
+ */
+export function createRevalidateHandler({ secret }) {
+  return async function POST(request) {
+    const { NextResponse } = await import("next/server");
+    const { revalidatePath } = await import("next/cache");
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    if (!secret || body.secret !== secret) {
+      return NextResponse.json({ error: "Invalid secret" }, { status: 401 });
+    }
+
+    const paths = body.paths;
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return NextResponse.json({ error: "paths must be a non-empty array" }, { status: 400 });
+    }
+
+    const revalidated = [];
+    for (const p of paths) {
+      try {
+        revalidatePath(p);
+        revalidated.push(p);
+      } catch (e) {
+        console.error(`[revalidate] Failed for ${p}:`, e.message);
+      }
+    }
+
+    console.log(`[revalidate] Revalidated ${revalidated.length}/${paths.length} paths:`, revalidated);
+    return NextResponse.json({ revalidated });
+  };
+}
+
 // Re-export modules for advanced usage
 export { ProductsModule } from "./services/products.js";
 export { CategoriesModule } from "./services/categories.js";
@@ -291,6 +354,8 @@ export { AffiliatesModule } from "./services/affiliates.js";
 export { TaxModule } from "./services/tax.js";
 export { CoaModule } from "./services/coa.js";
 export { LegalModule } from "./services/legal.js";
+export { ReferralsModule } from "./services/referrals.js";
+export { DiscountStoreModule } from "./services/discount-store.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";
