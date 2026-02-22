@@ -29,6 +29,7 @@ import { LegalModule } from "./services/legal.js";
 import { MediaModule } from "./services/media.js";
 import { ReferralsModule } from "./services/referrals.js";
 import { DiscountStoreModule } from "./services/discount-store.js";
+import { SitemapModule } from "./services/sitemap.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -78,6 +79,7 @@ export class DashClient {
     this.media = new MediaModule(this);
     this.referrals = new ReferralsModule(this);
     this.discountStore = new DiscountStoreModule(this);
+    this.sitemap = new SitemapModule(this);
 
     // Inject footer branding (skip in test mode)
     if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
@@ -356,6 +358,7 @@ export { CoaModule } from "./services/coa.js";
 export { LegalModule } from "./services/legal.js";
 export { ReferralsModule } from "./services/referrals.js";
 export { DiscountStoreModule } from "./services/discount-store.js";
+export { SitemapModule } from "./services/sitemap.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";

@@ -100,6 +100,24 @@ export class AffiliatesModule {
   }
 
   /**
+   * Update affiliate profile (e.g., PayPal email)
+   * Requires authentication + approved affiliate status
+   * @param {Object} data
+   * @param {string} [data.paypal_email] - PayPal email for commission payouts
+   * @returns {Promise<{success: boolean, paypal_email: string}>}
+   */
+  async updateProfile(data) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/dashboard`;
+    return this.client._fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
    * Deactivate one of the affiliate's own discount codes (one-way)
    * Requires authentication + approved affiliate status
    * @param {string} codeId - The discount code ID to deactivate

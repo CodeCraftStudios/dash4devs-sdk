@@ -23,6 +23,7 @@ export class CoaModule {
   async list(options = {}) {
     const params = new URLSearchParams();
     if (options.q) params.append("q", options.q);
+    if (options.includeVariations) params.append("include_variations", "true");
 
     const queryString = params.toString();
     const url = `${this.client.baseURL}/api/storefront/coa${queryString ? `?${queryString}` : ""}`;
