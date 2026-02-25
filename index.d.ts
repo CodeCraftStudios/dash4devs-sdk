@@ -1877,6 +1877,11 @@ export interface MediaItem {
   width: number | null;
   height: number | null;
   tags: string[];
+  metadata: Record<string, string>;
+}
+
+export interface MediaGetFolderOptions {
+  metadata?: Record<string, string>;
 }
 
 export interface MediaFolderResponse {
@@ -1890,12 +1895,16 @@ export declare class MediaModule {
   /**
    * Get all media files within a named folder
    * @param folderName - The folder name (e.g. "gallery_01")
+   * @param options - Optional filters (e.g. { metadata: { type: "hero" } })
    *
    * @example
    * const { items } = await dash.media.getFolder("gallery_01");
    * items.forEach(img => console.log(img.url));
+   *
+   * // Filter by metadata
+   * const heroes = await dash.media.getFolder("gallery_01", { metadata: { type: "hero" } });
    */
-  getFolder(folderName: string): Promise<MediaFolderResponse>;
+  getFolder(folderName: string, options?: MediaGetFolderOptions): Promise<MediaFolderResponse>;
 }
 
 export declare class EmailModule {

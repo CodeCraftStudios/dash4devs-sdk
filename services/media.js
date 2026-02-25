@@ -12,14 +12,29 @@ export class MediaModule {
   /**
    * Get all media files within a named folder
    * @param {string} folderName - The folder name (e.g. "gallery_01")
+   * @param {Object} [options] - Optional filters
+   * @param {Object} [options.metadata] - Filter by metadata key-value pair (e.g. { type: "hero" })
    * @returns {Promise<{folder: string, items: Array}>}
    *
    * @example
    * const { items } = await client.media.getFolder("gallery_01");
-   * console.log(items); // [{ id, name, url, alt_text, width, height, ... }, ...]
+   * console.log(items); // [{ id, name, url, alt_text, width, height, metadata, ... }, ...]
+   *
+   * // Filter by metadata
+   * const heroes = await client.media.getFolder("gallery_01", { metadata: { type: "hero" } });
    */
-  async getFolder(folderName) {
-    const url = `${this.client.baseURL}/api/storefront/media/folder/${encodeURIComponent(folderName)}`;
+  async getFolder(folderName, options) {
+    let url = `${this.client.baseURL}/api/storefront/media/folder/${encodeURIComponent(folderName)}`;
+    const params = new URLSearchParams();
+    if (options?.metadata) {
+      const entries = Object.entries(options.metadata);
+      if (entries.length > 0) {
+        params.set('metadata_key', entries[0][0]);
+        params.set('metadata_value', String(entries[0][1]));
+      }
+    }
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
     return this.client._fetch(url);
   }
 }

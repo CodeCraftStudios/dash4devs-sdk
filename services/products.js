@@ -19,6 +19,7 @@ export class ProductsModule {
    * @param {string} options.search - Search in product name
    * @param {string[]} options.include - Include additional fields (e.g. ["main_size", "variations"])
    * @param {Object} options.customFields - Filter by custom fields (e.g. {popular: true, homepage_section: "hero"})
+   * @param {boolean} options.expand - Whether to expand per_variation products into separate cards (default: true)
    * @returns {Promise<{products: Array, pagination: Object}>}
    *
    * @example
@@ -49,6 +50,9 @@ export class ProductsModule {
     if (options.include && Array.isArray(options.include)) {
       params.append("include", options.include.join(","));
     }
+
+    // Per-variation expansion control
+    if (options.expand === false) params.append("expand", "false");
 
     // Custom fields filtering - prefix with cf_
     if (options.customFields && typeof options.customFields === "object") {

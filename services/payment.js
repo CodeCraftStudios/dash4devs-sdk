@@ -232,17 +232,22 @@ export class PaymentModule {
 
     const url = `${this.client.baseURL}/api/storefront/payment/authorize`;
 
+    const payload = {
+      token: authData.token,
+      descriptor: authData.descriptor || "",
+      amount: String(authData.amount),
+      currency: authData.currency || "USD",
+      invoice_number: authData.invoiceNumber || authData.invoice_number || "",
+      description: authData.description || "",
+      billing: authData.billing || {},
+    };
+    if (authData.shipping) payload.shipping = authData.shipping;
+    if (authData.customer) payload.customer = authData.customer;
+    if (authData.line_items) payload.line_items = authData.line_items;
+
     return this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({
-        token: authData.token,
-        descriptor: authData.descriptor || "",
-        amount: String(authData.amount),
-        currency: authData.currency || "USD",
-        invoice_number: authData.invoiceNumber || "",
-        description: authData.description || "",
-        billing: authData.billing || {},
-      }),
+      body: JSON.stringify(payload),
     });
   }
 

@@ -10,35 +10,29 @@
 const ACCEPT_JS_PROD = "https://js.authorize.net/v1/Accept.js";
 const ACCEPT_JS_SANDBOX = "https://jstest.authorize.net/v1/Accept.js";
 
-// Accept.js error code translations
+// Accept.js error code translations (from Authorize.net docs)
 const ERROR_MESSAGES = {
-  E_WC_01: "Please check the expiration date and try again.",
-  E_WC_02: "Please check the card information and try again.",
-  E_WC_03: "Please check the card information and try again.",
-  E_WC_04: "Please check the security code (CVV) and try again.",
-  E_WC_05: "Please include all required fields.",
-  E_WC_06: "Please check the security code (CVV) and try again.",
-  E_WC_07: "Please check the card number and try again.",
-  E_WC_08: "Please check the card number and try again.",
-  E_WC_09: "Please provide a valid bank routing number.",
-  E_WC_10: "Please provide a valid bank account number.",
-  E_WC_11: "Please provide a valid bank name.",
-  E_WC_12: "Please provide a valid bank account name.",
-  E_WC_13: "Please provide a valid echeck type.",
-  E_WC_14: "Please include all required fields.",
-  E_WC_15: "The card has expired. Please use a different card.",
-  E_WC_16: "The card number appears to be invalid.",
-  E_WC_17: "Please check the card expiration date.",
-  E_WC_18: "Please check the card security code (CVV).",
+  E_WC_01: "Please include all required fields.",
+  E_WC_02: "A card number is required.",
+  E_WC_03: "A card expiration date is required.",
+  E_WC_04: "Please use MM/YY format for the expiration date.",
+  E_WC_05: "The card has expired. Please use a different card.",
+  E_WC_06: "A card security code (CVV) is required.",
+  E_WC_07: "This card type is not accepted.",
+  E_WC_08: "The card number is not valid. Please check and try again.",
+  E_WC_10: "The payment configuration is invalid. Please contact support.",
+  E_WC_14: "An error occurred during processing. Please try again.",
+  E_WC_15: "The card security code (CVV) is not valid.",
+  E_WC_16: "The transaction was not accepted. Please try a different card.",
+  E_WC_17: "An error occurred during processing. Please try again.",
   E_WC_19: "An unexpected error occurred. Please try again.",
-  E_WC_20: "The merchant credentials are invalid.",
   E_WC_21: "The request could not be processed. Please try again.",
 };
 
 export class AuthorizeNetCSR {
   constructor(config) {
     this._apiLoginId = config.api_login_id;
-    this._clientKey = config.client_key;
+    this._clientKey = config.public_client_key || config.client_key;
     this._environment = config.environment || "test";
     this._loaded = false;
     this._loading = null;
@@ -131,26 +125,45 @@ export class AuthorizeNetCSR {
         },
       };
 
-      window.Accept.dispatchData(secureData, (response) => {
-        if (response.messages.resultCode === "Error") {
-          const errors = response.messages.message || [];
-          const firstError = errors[0] || {};
-          const code = firstError.code || "";
-          const friendlyMessage = ERROR_MESSAGES[code] || firstError.text || "Card validation failed.";
-
-          const error = new Error(friendlyMessage);
-          error.code = code;
-          error.details = errors;
-          reject(error);
-          return;
+      // Timeout in case Accept.js callback never fires (network/CORS/credential issues)
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error("Payment processing timed out. Please check your card details and try again."));
         }
+      }, 15000);
 
-        // Return processor-agnostic token format
-        resolve({
-          token: response.opaqueData.dataValue,
-          descriptor: response.opaqueData.dataDescriptor,
+      try {
+        window.Accept.dispatchData(secureData, (response) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+
+          if (response.messages.resultCode === "Error") {
+            const errors = response.messages.message || [];
+            const firstError = errors[0] || {};
+            const code = firstError.code || "";
+            const friendlyMessage = ERROR_MESSAGES[code] || firstError.text || "Card validation failed.";
+
+            const error = new Error(friendlyMessage);
+            error.code = code;
+            error.details = errors;
+            reject(error);
+            return;
+          }
+
+          // Return processor-agnostic token format
+          resolve({
+            token: response.opaqueData.dataValue,
+            descriptor: response.opaqueData.dataDescriptor,
+          });
         });
-      });
+      } catch (err) {
+        settled = true;
+        clearTimeout(timeout);
+        reject(new Error("Failed to process card. Please try again."));
+      }
     });
   }
 

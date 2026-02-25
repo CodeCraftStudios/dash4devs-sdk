@@ -133,6 +133,86 @@ export class AffiliatesModule {
       body: JSON.stringify({ code_id: codeId }),
     });
   }
+
+  // ── Product Requests (creator seeding kits) ────────────────────────────
+
+  /**
+   * List the current affiliate's product requests
+   * @param {Object} [params] - Optional query params
+   * @param {number} [params.page] - Page number
+   * @returns {Promise<{requests: Array, pagination: Object}>}
+   */
+  async listProductRequests(params = {}) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    const qs = query.toString();
+    const url = `${this.client.baseURL}/api/storefront/affiliates/product-requests${qs ? `?${qs}` : ""}`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /**
+   * Submit a new product request
+   * @param {Object} data - Request data
+   * @param {string} data.full_name
+   * @param {string} data.email
+   * @param {string} data.shipping_address
+   * @param {string} data.platform
+   * @param {string} [data.platform_other]
+   * @param {string} [data.profile_link]
+   * @param {string} data.follower_count
+   * @param {string} data.kit_type
+   * @param {string} [data.kit_other_description]
+   * @param {string} data.content_plan
+   * @param {string} data.expected_sales
+   * @param {string} [data.content_links]
+   * @param {string} [data.additional_notes]
+   * @returns {Promise<{success: boolean, message: string, request_id: string}>}
+   */
+  async createProductRequest(data) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/product-requests`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Get a single product request by ID
+   * @param {string} requestId
+   * @returns {Promise<{request: Object}>}
+   */
+  async getProductRequest(requestId) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/product-requests/${requestId}`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /**
+   * Update a pending product request
+   * @param {string} requestId
+   * @param {Object} data - Fields to update
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async updateProductRequest(requestId, data) {
+    const token = this.client.auth._accessToken;
+    if (!token) throw new Error("Not authenticated");
+    const url = `${this.client.baseURL}/api/storefront/affiliates/product-requests/${requestId}`;
+    return this.client._fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export default AffiliatesModule;
