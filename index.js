@@ -199,10 +199,12 @@ export class DashClient {
       if (sessionId) headers["X-Session-Id"] = sessionId;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    // Skip Next.js fetch cache in dev mode
+    const isDev = typeof process !== "undefined" && process.env?.DEV === "true";
+    const fetchOptions = { ...options, headers };
+    if (isDev) fetchOptions.cache = "no-store";
+
+    const response = await fetch(url, fetchOptions);
 
     const data = await response.json();
 
