@@ -1979,6 +1979,31 @@ export declare class DiscountStoreModule {
 }
 
 // =============================================================================
+// EARN POINTS TYPES
+// =============================================================================
+
+export interface EarnPointsListResponse {
+  completed_tasks: string[];
+}
+
+export interface EarnPointsCompleteResponse {
+  success: boolean;
+  task_id: string;
+  points_awarded: number;
+  points_remaining: number;
+}
+
+export declare class EarnPointsModule {
+  constructor(client: DashClient);
+
+  /** List completed earn-point tasks for the authenticated customer */
+  list(): Promise<EarnPointsListResponse>;
+
+  /** Mark a social task as completed and award points (requires auth) */
+  complete(taskId: string): Promise<EarnPointsCompleteResponse>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -2047,6 +2072,9 @@ export declare class DashClient {
 
   /** Discount Store (loyalty point redemption) */
   readonly discountStore: DiscountStoreModule;
+
+  /** Earn Points (social task completion for loyalty points) */
+  readonly earnPoints: EarnPointsModule;
 
   /**
    * Health check - validates API key and returns organization info
