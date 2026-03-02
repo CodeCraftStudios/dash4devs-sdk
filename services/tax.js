@@ -208,10 +208,13 @@ export class TaxModule {
         const lines = [];
         const rate = item.rate !== null ? `${item.rate}%` : "N/A";
 
+        // Use tax_class_name when available, fall back to cannabinoid_type
+        const typeLabel = item.tax_class_name || item.cannabinoid_type;
+
         // Base tax line
         if (item.rate !== null && parseFloat(item.rate) > 0) {
           lines.push({
-            label: `State Tax (${item.cannabinoid_type})`,
+            label: `State Tax (${typeLabel})`,
             amount: item.tax_amount,
             rate,
           });
@@ -220,7 +223,7 @@ export class TaxModule {
         // Special tax line (if applicable)
         if (item.special_tax_rate && parseFloat(item.special_tax_rate) > 0) {
           lines.push({
-            label: `${item.special_tax_name || "Special Tax"} (${item.cannabinoid_type})`,
+            label: `${item.special_tax_name || "Special Tax"} (${typeLabel})`,
             amount: item.tax_amount,
             rate: `${item.special_tax_rate}%`,
           });

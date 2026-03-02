@@ -37,8 +37,12 @@ export interface ProductSize {
   weight: string | null;
   /** Weight unit (g, oz, lb, etc.) */
   weight_unit: string;
-  /** Cannabinoid classification for state-level tax calculation */
-  cannabinoid_type: "general" | "cbd" | "delta8" | "delta9" | "thca" | "hhc";
+  /** @deprecated Use tax_class instead. Cannabinoid classification for state-level tax calculation */
+  cannabinoid_type: "general" | "cbd" | "delta8" | "delta9" | "thca" | "hhc" | string;
+  /** Dynamic tax class slug (replaces cannabinoid_type) */
+  tax_class?: string;
+  /** Display name for the tax class */
+  tax_class_name?: string;
   /** Loyalty points earned per unit purchased */
   points: number;
   /** Bulk discount tiers for this size */
@@ -1622,12 +1626,20 @@ export interface TaxCalculateOptions {
   items?: Array<{
     price: number;
     quantity: number;
+    /** @deprecated Use tax_class instead */
     cannabinoid_type?: string;
+    /** Dynamic tax class slug */
+    tax_class?: string;
   }>;
 }
 
 export interface TaxBreakdownItem {
+  /** @deprecated Use tax_class instead */
   cannabinoid_type: string;
+  /** Dynamic tax class slug */
+  tax_class?: string;
+  /** Display name of the tax class */
+  tax_class_name?: string;
   rate: string | null;
   special_tax_rate: string;
   special_tax_name?: string;
@@ -1641,7 +1653,7 @@ export interface TaxCalculateResponse {
   tax_breakdown: TaxBreakdownItem[];
   total_tax: string;
   is_legal: boolean;
-  illegal_items: Array<{ cannabinoid_type: string; message: string }>;
+  illegal_items: Array<{ cannabinoid_type: string; tax_class?: string; message: string }>;
   fallback: boolean;
 }
 
