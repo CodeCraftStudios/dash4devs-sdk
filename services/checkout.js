@@ -25,7 +25,7 @@ export class CheckoutModule {
    * @returns {Promise<Object>} Cart summary, customer preview, auth status
    */
   async start(data) {
-    const { cartId, email } = data;
+    const { cartId, email, acceptsMarketing } = data;
     if (!cartId) {
       throw new Error("cartId is required");
     }
@@ -39,6 +39,7 @@ export class CheckoutModule {
 
     const body = { cart_id: cartId };
     if (email) body.email = email;
+    if (acceptsMarketing !== undefined) body.accepts_marketing = acceptsMarketing;
 
     const url = `${this.client.baseURL}/api/storefront/checkout/start`;
     return this.client._fetch(url, {
