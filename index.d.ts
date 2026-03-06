@@ -1488,6 +1488,8 @@ export interface TrackingResult {
 export interface AddressValidationInput {
   /** Street address line 1 */
   address_line1: string;
+  /** Apt / Suite / PO Box (optional) */
+  address_line2?: string;
   /** City name */
   city: string;
   /** State abbreviation (e.g. "CA") */

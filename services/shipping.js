@@ -145,13 +145,14 @@ export class ShippingModule {
    * }
    */
   async validateAddress(address) {
-    const { address_line1, city, state, postal_code, country_code } = address;
+    const { address_line1, address_line2, city, state, postal_code, country_code } = address;
 
     if (!address_line1 || !city || !state || !postal_code) {
       throw new Error("address_line1, city, state, and postal_code are required");
     }
 
     const body = { address_line1, city, state, postal_code };
+    if (address_line2) body.address_line2 = address_line2;
     if (country_code) body.country_code = country_code;
 
     const url = `${this.client.baseURL}/api/storefront/shipping/validate-address`;
