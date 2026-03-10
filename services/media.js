@@ -37,6 +37,20 @@ export class MediaModule {
     if (qs) url += `?${qs}`;
     return this.client._fetch(url);
   }
+
+  /**
+   * Get a single media file by its name field
+   * @param {string} name - The exact name of the media file (e.g. "brick_desktop")
+   * @returns {Promise<{file: {id, name, url, alt_text, width, height}}>}
+   *
+   * @example
+   * const { file } = await client.media.getByName("brick_desktop");
+   * console.log(file.url); // "https://cdn.example.com/media/brick_desktop.jpg"
+   */
+  async getByName(name) {
+    const url = `${this.client.baseURL}/api/storefront/media/by-name/${encodeURIComponent(name)}`;
+    return this.client._fetch(url);
+  }
 }
 
 export default MediaModule;
