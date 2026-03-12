@@ -38,8 +38,13 @@ export class BlogModule {
   async list(options = {}) {
     const params = new URLSearchParams();
 
+    const limit = options.limit || 20;
     if (options.limit) params.append("limit", options.limit);
-    if (options.offset) params.append("offset", options.offset);
+    if (options.page && options.page > 1) {
+      params.append("offset", String((options.page - 1) * limit));
+    } else if (options.offset) {
+      params.append("offset", options.offset);
+    }
     if (options.category) params.append("category", options.category);
     if (options.tag) params.append("tag", options.tag);
     if (options.search) params.append("search", options.search);
