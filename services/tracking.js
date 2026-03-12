@@ -18,6 +18,7 @@ export class TrackingModule {
     this._initialized = false;
     this._provider = null;
     this._engine = null;
+    this._thoughtmetric = null;
     this._debugOverlay = null;
     this._debugLogs = [];
     this._eventCount = 0;
@@ -62,8 +63,15 @@ export class TrackingModule {
       this._provider = data.provider.slug;
       this._log(`Provider: ${data.provider.name}`);
 
-      if (this._provider === "posthog") {
-        await this._initEngine(data.config.api_key, data.config.host);
+      // Initialize all active providers
+      const providers = data.providers || [{ slug: data.provider.slug, name: data.provider.name, config: data.config }];
+
+      for (const p of providers) {
+        if (p.slug === "posthog") {
+          await this._initEngine(p.config.api_key, p.config.host);
+        } else if (p.slug === "thoughtmetric") {
+          await this._initThoughtMetric(p.config.project_id);
+        }
       }
 
       this._initialized = true;
@@ -359,6 +367,86 @@ export class TrackingModule {
     else console.log(prefix, message);
 
     this._updateOverlay();
+  }
+
+  // ---------------------------------------------------------------------------
+  // ThoughtMetric
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Track a ThoughtMetric event.
+   * @param {string} eventName - Event name: 'order', 'addToCart', 'viewContent', 'lead'
+   * @param {Object} [properties] - Event properties
+   */
+  tmEvent(eventName, properties = {}) {
+    if (typeof window !== "undefined" && typeof window.thoughtmetric === "function") {
+      window.thoughtmetric("event", eventName, properties);
+      this._log(`TM Event: ${eventName}`);
+    }
+  }
+
+  /**
+   * Identify a customer in ThoughtMetric (call after purchase).
+   * @param {string} customerId - Unique customer ID or email
+   * @param {Object} [properties] - Customer properties (email, first_name, last_name, etc.)
+   */
+  tmIdentify(customerId, properties = {}) {
+    if (typeof window !== "undefined" && typeof window.thoughtmetric === "function") {
+      window.thoughtmetric("identify", customerId, properties);
+      this._log(`TM Identify: ${customerId}`);
+    }
+  }
+
+  /**
+   * Track a purchase in ThoughtMetric.
+   * @param {Object} order - Order data
+   * @param {string} order.transaction_id - Order/transaction ID
+   * @param {number} order.total_price - Total order amount
+   * @param {string} [order.currency] - Currency code (default: USD)
+   * @param {number} [order.subtotal_price] - Subtotal before tax/shipping
+   * @param {number} [order.total_tax] - Tax amount
+   * @param {number} [order.total_shipping] - Shipping amount
+   * @param {number} [order.total_discounts] - Discount amount
+   * @param {string[]} [order.discount_codes] - Applied discount codes
+   * @param {Array} [order.items] - Line items [{product_name, variant, sku, quantity, unit_price}]
+   */
+  tmPurchase(order) {
+    this.tmEvent("order", {
+      transaction_id: order.transaction_id,
+      total_price: order.total_price,
+      currency: order.currency || "USD",
+      orderCurrency: order.currency || "USD",
+      subtotal_price: order.subtotal_price,
+      total_tax: order.total_tax,
+      total_shipping: order.total_shipping,
+      total_discounts: order.total_discounts || 0,
+      discount_codes: order.discount_codes || [],
+      items: order.items || [],
+    });
+  }
+
+  /** @private */
+  async _initThoughtMetric(projectId) {
+    if (!projectId || typeof window === "undefined") return;
+
+    try {
+      this._log(`Initializing ThoughtMetric (project: ${projectId})...`);
+
+      // Inject ThoughtMetric tracking pixel script
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = `https://app.thoughtmetric.io/pixel/${projectId}.js`;
+      script.onload = () => {
+        this._thoughtmetric = true;
+        this._log("ThoughtMetric pixel loaded");
+      };
+      script.onerror = () => {
+        this._log("ThoughtMetric pixel failed to load", "error");
+      };
+      document.head.appendChild(script);
+    } catch (err) {
+      this._log(`ThoughtMetric init failed: ${err.message}`, "error");
+    }
   }
 
   /** @private */
