@@ -132,6 +132,9 @@ export class ProductsModule {
     if (options.limit) params.append("limit", options.limit);
     if (options.offset) params.append("offset", options.offset);
     if (options.product) params.append("product", options.product);
+    if (options.rating) params.append("rating", options.rating);
+    if (options.sort) params.append("sort", options.sort);
+    if (options.has_media) params.append("has_media", options.has_media);
     const qs = params.toString();
     const url = `${this.client.baseURL}/api/storefront/reviews${qs ? `?${qs}` : ""}`;
     return this.client._fetch(url);
