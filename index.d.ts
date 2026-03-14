@@ -396,6 +396,84 @@ export interface ProductGetResponse {
   product: Product;
 }
 
+/**
+ * Response from the lightweight core product endpoint (/products/{slug}/core).
+ * Contains SSR-friendly data without heavy variations/sizes/bulk discounts.
+ */
+export interface ProductCoreResponse {
+  product: {
+    id: string;
+    name: string;
+    short_name: string | null;
+    slug: string;
+    description: string | null;
+    in_stock: boolean;
+    main_image: string | null;
+    display_image: string | null;
+    avg_rating: number;
+    reviews_count: number;
+    /** Min/max effective price across all sizes */
+    price_range: { min: string; max: string } | null;
+    category: {
+      id: string;
+      name: string;
+      slug: string;
+      parent: { id: string; name: string; slug: string } | null;
+    } | null;
+    features: { key: string; value: string }[];
+    qna: { question: string; answer: string }[];
+    images: { id: string; url: string }[];
+    seo: {
+      title: string | null;
+      description: string | null;
+      keywords: string | null;
+      og_image: string | null;
+    };
+    bundle_type: string | null;
+    custom_fields: Record<string, any>;
+  };
+}
+
+/**
+ * Response from the heavy options endpoint (/products/{slug}/options).
+ * Contains variations, sizes, bulk discounts, related products, and bundle data.
+ * Intended for client-side fetching after SSR of core data.
+ */
+export interface ProductOptionsResponse {
+  options: {
+    has_variations: boolean;
+    selectable_variations: SelectableVariation[] | null;
+    lab_reports: {
+      variation_name: string;
+      variation_slug: string;
+      file_name: string;
+      url: string;
+    }[] | null;
+    sizes: ProductSize[];
+    attributes: {
+      id: string;
+      name: string;
+      options: {
+        id: string;
+        value: string;
+        slug: string;
+        description: string | null;
+        main: boolean;
+        use_as_product_page: boolean;
+        og_image: string | null;
+        seo_title: string | null;
+        seo_description: string | null;
+        sizes: ProductSize[];
+      }[];
+    }[];
+    includes: any[] | null;
+    freestyle_slots: any[] | null;
+    related: Product[];
+    bundle_type: string | null;
+    is_bundle: boolean;
+  };
+}
+
 export interface FeaturedVariation {
   id: string;
   /** Variation name (e.g. "Blue Razz") */
@@ -556,9 +634,23 @@ declare class ProductsModule {
   list(options?: ProductsListOptions): Promise<ProductsListResponse>;
 
   /**
-   * Get a single product by slug
+   * Get a single product by slug (full data — use getCore for SSR)
    */
   get(slug: string): Promise<ProductGetResponse>;
+
+  /**
+   * Get lightweight core product data for SSR.
+   * No variations, sizes, or bulk discounts — fast TTFB.
+   * @param slug - Product slug
+   */
+  getCore(slug: string): Promise<ProductCoreResponse>;
+
+  /**
+   * Get heavy options data (variations, sizes, bulk discounts, related, includes).
+   * Intended for client-side fetching after SSR of core data.
+   * @param slug - Product slug
+   */
+  getOptions(slug: string): Promise<ProductOptionsResponse>;
 
   /**
    * Get reviews for a product

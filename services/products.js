@@ -78,6 +78,28 @@ export class ProductsModule {
   }
 
   /**
+   * Get lightweight core product data for SSR (no variations/sizes/bulk discounts).
+   * Returns name, description, images, features, qna, seo, avg_rating, reviews_count, price_range.
+   * @param {string} slug - Product slug
+   * @returns {Promise<{product: Object}>}
+   */
+  async getCore(slug) {
+    const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}/core`;
+    return this.client._fetch(url);
+  }
+
+  /**
+   * Get heavy options data for a product (variations, sizes, bulk discounts, related, includes).
+   * Intended for client-side fetching after SSR of core data.
+   * @param {string} slug - Product slug
+   * @returns {Promise<{options: Object}>}
+   */
+  async getOptions(slug) {
+    const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(slug)}/options`;
+    return this.client._fetch(url);
+  }
+
+  /**
    * Get reviews for a product
    * @param {string} slug - Product slug
    * @param {Object} options - Query options

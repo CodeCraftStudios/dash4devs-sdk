@@ -441,7 +441,7 @@ export class TrackingModule {
         this._log("ThoughtMetric pixel loaded");
       };
       script.onerror = () => {
-        this._log("ThoughtMetric pixel failed to load", "error");
+        this._log("ThoughtMetric pixel failed to load", "warn");
       };
       document.head.appendChild(script);
     } catch (err) {
