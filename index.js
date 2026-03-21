@@ -31,6 +31,7 @@ import { ReferralsModule } from "./services/referrals.js";
 import { DiscountStoreModule } from "./services/discount-store.js";
 import { EarnPointsModule } from "./services/earn-points.js";
 import { SitemapModule } from "./services/sitemap.js";
+import { AdminModule } from "./services/admin.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -82,6 +83,11 @@ export class DashClient {
     this.discountStore = new DiscountStoreModule(this);
     this.earnPoints = new EarnPointsModule(this);
     this.sitemap = new SitemapModule(this);
+
+    // Admin module — only available with secret keys (sk_*)
+    if (apiKey.startsWith("sk_")) {
+      this.admin = new AdminModule(this);
+    }
 
     // Inject footer branding (skip in test mode)
     if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
