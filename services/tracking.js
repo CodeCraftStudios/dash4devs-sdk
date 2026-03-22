@@ -361,10 +361,14 @@ export class TrackingModule {
     this._debugLogs.push(entry);
     if (this._debugLogs.length > 50) this._debugLogs.shift();
 
-    const prefix = "[Tracking]";
-    if (level === "error") console.error(prefix, message);
-    else if (level === "warn") console.warn(prefix, message);
-    else console.log(prefix, message);
+    // Silence logs in production (live keys)
+    const isLive = this.client?.apiKey?.startsWith("pk_live") || this.client?.apiKey?.startsWith("sk_live");
+    if (!isLive) {
+      const prefix = "[Tracking]";
+      if (level === "error") console.error(prefix, message);
+      else if (level === "warn") console.warn(prefix, message);
+      else console.log(prefix, message);
+    }
 
     this._updateOverlay();
   }
