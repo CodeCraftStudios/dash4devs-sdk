@@ -132,7 +132,7 @@ export class AuthorizeNetCSR {
           settled = true;
           reject(new Error("Payment processing timed out. Please check your card details and try again."));
         }
-      }, 15000);
+      }, 30000);
 
       try {
         window.Accept.dispatchData(secureData, (response) => {
