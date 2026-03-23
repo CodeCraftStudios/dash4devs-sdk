@@ -172,17 +172,22 @@ export class PaymentModule {
 
     const url = `${this.client.baseURL}/api/storefront/payment/charge`;
 
+    const payload = {
+      token: chargeData.token,
+      descriptor: chargeData.descriptor || "",
+      amount: String(chargeData.amount),
+      currency: chargeData.currency || "USD",
+      invoice_number: chargeData.invoiceNumber || chargeData.invoice_number || "",
+      description: chargeData.description || "",
+      billing: chargeData.billing || {},
+    };
+    if (chargeData.shipping) payload.shipping = chargeData.shipping;
+    if (chargeData.customer) payload.customer = chargeData.customer;
+    if (chargeData.line_items) payload.line_items = chargeData.line_items;
+
     return this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({
-        token: chargeData.token,
-        descriptor: chargeData.descriptor || "",
-        amount: String(chargeData.amount),
-        currency: chargeData.currency || "USD",
-        invoice_number: chargeData.invoiceNumber || "",
-        description: chargeData.description || "",
-        billing: chargeData.billing || {},
-      }),
+      body: JSON.stringify(payload),
     });
   }
 

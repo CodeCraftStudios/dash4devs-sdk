@@ -78,7 +78,7 @@ export class CheckoutModule {
    * @returns {Promise<Object>} Order data, customer, auth tokens (guest only)
    */
   async complete(data) {
-    const { cartId, email, code, shipping, customerNotes, payment, captcha_token, totals } = data;
+    const { cartId, email, code, shipping, customerNotes, payment, payment_token, captcha_token, totals } = data;
     if (!cartId || !shipping) {
       throw new Error("cartId and shipping are required");
     }
@@ -98,6 +98,7 @@ export class CheckoutModule {
     if (email) body.email = email;
     if (code) body.code = code;
     if (payment) body.payment = payment;
+    if (payment_token) body.payment_token = payment_token;
     if (captcha_token) body.captcha_token = captcha_token;
     if (totals) body.totals = totals;
 
