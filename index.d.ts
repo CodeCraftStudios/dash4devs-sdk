@@ -1043,6 +1043,8 @@ export interface ChargeData {
 
 export interface ChargeResult {
   success: boolean;
+  /** True when Authorize.net FDS held the transaction for fraud review */
+  fraud_held?: boolean;
   error?: string;
   transaction?: {
     transaction_id: string;
@@ -1418,7 +1420,14 @@ export interface CheckoutCompleteData {
   payment?: {
     transaction_id: string;
     auth_code: string;
+    captured?: boolean;
     fraud_held?: boolean;
+    response_code?: string;
+    account_number?: string;
+    account_type?: string;
+    processor?: string;
+    avs_result_code?: string;
+    cvv_result_code?: string;
     posthog_session_id?: string;
   };
   /** Frontend-calculated totals to override server-side calculation */
