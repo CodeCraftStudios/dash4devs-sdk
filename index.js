@@ -32,6 +32,7 @@ import { DiscountStoreModule } from "./services/discount-store.js";
 import { EarnPointsModule } from "./services/earn-points.js";
 import { SitemapModule } from "./services/sitemap.js";
 import { AdminModule } from "./services/admin.js";
+import { ContentTypesModule } from "./services/content-types.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -87,6 +88,7 @@ export class DashClient {
     // Admin module — only available with secret keys (sk_*)
     if (apiKey.startsWith("sk_")) {
       this.admin = new AdminModule(this);
+      this.contentTypes = new ContentTypesModule(this);
     }
 
     // Inject footer branding (skip in test mode)
