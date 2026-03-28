@@ -382,7 +382,7 @@ export interface CartAddOptions {
 export interface PingResponse {
   status: string;
   message: string;
-  organization: { id: string; name: string };
+  organization: { id: string; name: string; is_locked: boolean };
   environment: string;
   timestamp: string;
 }

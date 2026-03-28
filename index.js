@@ -95,6 +95,11 @@ export class DashClient {
     if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
       this._injectFooterBranding();
     }
+
+    // Check org lock status on client-side init
+    if (typeof window !== "undefined") {
+      this._checkLockStatus();
+    }
   }
 
   /**
@@ -155,6 +160,21 @@ export class DashClient {
         inject();
       }
     }, 100);
+  }
+
+  /**
+   * Check if the organization is locked and redirect if so.
+   * @private
+   */
+  async _checkLockStatus() {
+    try {
+      const res = await this.ping();
+      if (res.organization?.is_locked) {
+        window.location.href = "https://www.codecraftstudios.net";
+      }
+    } catch {
+      // Silently fail — don't block the page if ping fails
+    }
   }
 
   /**
@@ -229,6 +249,12 @@ export class DashClient {
       error.status = response.status;
       error.details = data;
       throw error;
+    }
+
+    // Check if organization is locked — redirect storefront to codecraftstudios.net
+    if (data.organization?.is_locked && typeof window !== "undefined") {
+      window.location.href = "https://www.codecraftstudios.net";
+      return data;
     }
 
     return data;
