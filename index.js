@@ -54,9 +54,41 @@ export class DashClient {
       throw new Error("apiKey must start with 'pk_' or 'sk_'");
     }
 
+    // SECURITY: Prevent secret keys from being used in browser environments
+    if (typeof window !== "undefined" && apiKey.startsWith("sk_")) {
+      throw new Error(
+        "\n\n🚨 DASH4DEVS SECURITY ERROR 🚨\n\n" +
+        "You are using a SECRET key (sk_*) in a browser environment.\n" +
+        "This exposes your entire store to anyone who views your site.\n\n" +
+        "SECRET keys must ONLY be used in server-side code (API routes, backend).\n" +
+        "Use your PUBLIC key (pk_*) for client-side / NEXT_PUBLIC_ env vars.\n\n" +
+        "If this key has been exposed, rotate it immediately in your dashboard:\n" +
+        "Settings > API > Keys\n"
+      );
+    }
+
+    // SECURITY: Detect if secret key was leaked via NEXT_PUBLIC_ env vars
+    if (typeof process !== "undefined" && typeof process.env !== "undefined") {
+      const envEntries = Object.entries(process.env || {});
+      for (const [key, value] of envEntries) {
+        if (key.startsWith("NEXT_PUBLIC_") && typeof value === "string" && (value.startsWith("sk_live_") || value.startsWith("sk_test_"))) {
+          throw new Error(
+            "\n\n🚨 DASH4DEVS SECURITY ERROR 🚨\n\n" +
+            `Secret key detected in ${key}!\n` +
+            "NEXT_PUBLIC_ variables are exposed to the browser.\n" +
+            "Move your secret key to a non-NEXT_PUBLIC_ variable and use it only in server-side code.\n\n" +
+            "Use your PUBLIC key (pk_*) for NEXT_PUBLIC_ env vars.\n"
+          );
+        }
+      }
+    }
+
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
     this._sessionId = null;
+
+    // Startup info table
+    this._printStartupInfo();
 
     // Initialize modules
     this.products = new ProductsModule(this);
@@ -91,8 +123,11 @@ export class DashClient {
       this.contentTypes = new ContentTypesModule(this);
     }
 
-    // Inject footer branding (skip in test mode)
-    if (typeof window !== "undefined" && !this.apiKey.includes("_test_")) {
+    // SDK version
+    this.version = "0.1.0";
+
+    // Inject footer branding for all keys (production and test)
+    if (typeof window !== "undefined") {
       this._injectFooterBranding();
     }
 
@@ -100,6 +135,45 @@ export class DashClient {
     if (typeof window !== "undefined") {
       this._checkLockStatus();
     }
+  }
+
+  /**
+   * Print startup info table to console
+   * @private
+   */
+  _printStartupInfo() {
+    // Only print on server side (terminal) — never expose key info in browser
+    if (typeof window !== "undefined") return;
+
+    const maskKey = (key) => {
+      if (!key || key.length < 8) return key;
+      const prefix = key.slice(0, key.indexOf("_", 3) + 1);
+      const last4 = key.slice(-4);
+      return `${prefix}${"*".repeat(Math.max(0, key.length - prefix.length - 4))}${last4}`;
+    };
+
+    const keyType = this.apiKey.startsWith("pk_") ? "Public" : "Secret";
+    const env = this.apiKey.includes("_live_") ? "Production" : this.apiKey.includes("_test_") ? "Test" : "Unknown";
+
+    console.log("");
+    console.log("┌─────────────────────────────────────────────┐");
+    console.log(`│  Dash4Devs SDK v${this.version}                          │`);
+    console.log("├──────────────────┬──────────────────────────┤");
+    console.log(`│  Key Type        │  ${(keyType + " (" + env + ")").padEnd(24)} │`);
+    console.log(`│  API Key         │  ${maskKey(this.apiKey).padEnd(24)} │`);
+    console.log(`│  Base URL        │  ${this.baseURL.slice(0, 24).padEnd(24)} │`);
+    console.log(`│  Environment     │  ${"Server (Node.js)".padEnd(24)} │`);
+    console.log("└──────────────────┴──────────────────────────┘");
+
+    if (env === "Production" && keyType === "Public") {
+      console.log("  ✓ Production mode — branding will be injected");
+    } else if (env === "Test") {
+      console.log("  ⚡ Test mode — branding disabled");
+    }
+    if (keyType === "Secret") {
+      console.log("  🔒 Secret key — server-side only");
+    }
+    console.log("");
   }
 
   /**
@@ -143,8 +217,8 @@ export class DashClient {
       `;
 
       brandingDiv.innerHTML = `
-        Powered by <a href="https://dashfordevs.com" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0ea5e9; text-decoration: none;">Dash4Devs</a>,
-        by <a href="https://www.codecraftstudios.net" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0ea5e9; text-decoration: none;">CodeCraft Studios</a>
+        Powered by <a href="https://dashfordevs.com" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0ea5e9; text-decoration: none;">Dash4Devs</a>
+        <span style="color: #9ca3af; font-size: 11px; margin-left: 4px;">v${this.version}</span>
       `;
 
       // Append to footer
