@@ -33,6 +33,7 @@ import { EarnPointsModule } from "./services/earn-points.js";
 import { SitemapModule } from "./services/sitemap.js";
 import { AdminModule } from "./services/admin.js";
 import { ContentTypesModule } from "./services/content-types.js";
+import { CalendarModule } from "./services/calendar.js";
 
 // =============================================================================
 // MAIN CLIENT
@@ -116,6 +117,7 @@ export class DashClient {
     this.discountStore = new DiscountStoreModule(this);
     this.earnPoints = new EarnPointsModule(this);
     this.sitemap = new SitemapModule(this);
+    this.calendar = new CalendarModule(this);
 
     // Admin module — only available with secret keys (sk_*)
     if (apiKey.startsWith("sk_")) {
@@ -472,6 +474,7 @@ export { ReferralsModule } from "./services/referrals.js";
 export { DiscountStoreModule } from "./services/discount-store.js";
 export { EarnPointsModule } from "./services/earn-points.js";
 export { SitemapModule } from "./services/sitemap.js";
+export { CalendarModule } from "./services/calendar.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";
