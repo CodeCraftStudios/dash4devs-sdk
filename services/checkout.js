@@ -86,9 +86,9 @@ export class CheckoutModule {
     const headers = {};
     if (this.client.auth && this.client.auth.token) {
       headers["Authorization"] = `Bearer ${this.client.auth.token}`;
-    } else if (!email || !code) {
-      throw new Error("email and code are required for guest checkout");
     }
+    // Don't throw if email/code missing — _fetch will add auth token if available,
+    // and the backend will use whichever auth method is present.
 
     const body = {
       cart_id: cartId,
