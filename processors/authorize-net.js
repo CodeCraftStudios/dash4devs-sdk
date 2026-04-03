@@ -191,9 +191,9 @@ export class AuthorizeNetCSR {
     let month = expMatch[1].padStart(2, "0");
     let year = expMatch[2];
 
-    // Convert 4-digit year to 2-digit
-    if (year.length === 4) {
-      year = year.slice(-2);
+    // Accept.js requires 4-digit year
+    if (year.length === 2) {
+      year = "20" + year;
     }
 
     const monthNum = parseInt(month, 10);
@@ -203,7 +203,7 @@ export class AuthorizeNetCSR {
 
     // Check if expired
     const now = new Date();
-    const currentYear = now.getFullYear() % 100;
+    const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const yearNum = parseInt(year, 10);
 
