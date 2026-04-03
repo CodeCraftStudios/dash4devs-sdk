@@ -66,6 +66,21 @@ export class CheckoutModule {
   }
 
   /**
+   * Get the list of globally banned state names for the organization.
+   * Useful for footer disclaimers (e.g. "Products not available for shipment to: ...").
+   *
+   * @returns {Promise<{banned_states: Array<{code: string, name: string}>}>}
+   *
+   * @example
+   * const { banned_states } = await dash.checkout.getBannedStateNames();
+   * // banned_states = [{ code: "TX", name: "Texas" }, ...]
+   */
+  async getBannedStateNames() {
+    const url = `${this.client.baseURL}/api/storefront/banned-state-names`;
+    return this.client._fetch(url);
+  }
+
+  /**
    * Complete checkout — creates order from cart.
    * If authenticated, no code needed. If guest, requires email + OTP code.
    *
