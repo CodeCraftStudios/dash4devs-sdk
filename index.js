@@ -200,9 +200,9 @@ export class DashClient {
       }
 
       // Check if branding already exists in footer (SSR-rendered)
-      if (footer.innerHTML.includes("dashfordevs.com") ||
-          footer.innerHTML.includes("Dash4Devs") ||
-          footer.innerHTML.includes("codecraftstudios.net")) {
+      if (document.getElementById("dash4devs-branding") ||
+          footer.innerHTML.includes("dashfordevs.com") ||
+          footer.innerHTML.includes("Powered by Dash4Devs")) {
         return; // Branding already present, skip injection
       }
 
