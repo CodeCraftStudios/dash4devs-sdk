@@ -835,6 +835,40 @@ declare class CartModule {
    * Get total quantity across all items
    */
   getTotalQuantity(): number;
+
+  /**
+   * Get upsell recommendations for the current cart
+   */
+  getUpsells(): Promise<{
+    upsells: Array<{
+      upsell_id: string; product_id: string; product_name: string; product_slug: string
+      product_image: string | null; variation_id: string | null; variation_name: string | null
+      size_id: string; size_label: string; original_price: string; upsell_price: string
+      discount_type: "percentage" | "fixed"; discount_value: string; category_name: string | null
+    }>
+    timer_minutes: number; enabled: boolean
+  }>;
+
+  /**
+   * Start an upsell session (creates server-side timer)
+   */
+  startUpsellSession(upsellIds: string[]): Promise<{
+    session_id: string; expires_at: string; remaining_seconds: number; timer_minutes: number
+  }>;
+
+  /**
+   * Check the status of the active upsell session
+   */
+  getUpsellStatus(): Promise<{
+    active: boolean; session_id?: string; expires_at?: string; remaining_seconds: number
+  }>;
+
+  /**
+   * Add an upsell product to the cart at the discounted price
+   */
+  addUpsellToCart(upsellId: string, sessionId: string): Promise<{
+    cart_id: string; item: CartItem; message: string
+  }>;
 }
 
 declare class PagesModule {

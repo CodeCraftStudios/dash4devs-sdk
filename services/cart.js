@@ -319,6 +319,64 @@ export class CartModule {
     this._subtotal = "0.00";
     this._itemCount = 0;
   }
+
+  // ===========================================================================
+  // UPSELL SYSTEM
+  // ===========================================================================
+
+  /**
+   * Get upsell recommendations for the current cart.
+   * @returns {Promise<{upsells: Array, timer_minutes: number, enabled: boolean}>}
+   */
+  async getUpsells() {
+    if (!this._cartId) throw new Error("No active cart");
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/upsells`;
+    return this.client._fetch(url);
+  }
+
+  /**
+   * Start an upsell session (creates server-side timer).
+   * @param {string[]} upsellIds - IDs of upsell products to offer
+   * @returns {Promise<{session_id: string, expires_at: string, remaining_seconds: number, timer_minutes: number}>}
+   */
+  async startUpsellSession(upsellIds) {
+    if (!this._cartId) throw new Error("No active cart");
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/upsells/start`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ upsell_ids: upsellIds }),
+    });
+  }
+
+  /**
+   * Check the status of the active upsell session.
+   * @returns {Promise<{active: boolean, session_id?: string, expires_at?: string, remaining_seconds: number}>}
+   */
+  async getUpsellStatus() {
+    if (!this._cartId) throw new Error("No active cart");
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/upsells/status`;
+    return this.client._fetch(url);
+  }
+
+  /**
+   * Add an upsell product to the cart at the discounted price.
+   * @param {string} upsellId - UpsellProduct ID
+   * @param {string} sessionId - CheckoutUpsellSession ID
+   * @returns {Promise<{cart_id: string, item: Object, message: string}>}
+   */
+  async addUpsellToCart(upsellId, sessionId) {
+    if (!this._cartId) throw new Error("No active cart");
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/upsells/add`;
+    const result = await this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ upsell_id: upsellId, session_id: sessionId }),
+    });
+    // Refresh cart state after adding upsell
+    await this.load(this._cartId);
+    return result;
+  }
 }
+
+export default CartModule;
 
 export default CartModule;
