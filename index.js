@@ -227,15 +227,19 @@ export class DashClient {
       footer.appendChild(brandingDiv);
     };
 
-    // Delay injection to allow SSR hydration to complete
-    // This prevents hydration mismatches in frameworks like Next.js
-    setTimeout(() => {
+    // Delay injection well past SSR hydration to prevent hydration mismatches.
+    // requestIdleCallback fires after the main thread is idle (post-hydration).
+    const schedule = typeof requestIdleCallback === "function"
+      ? requestIdleCallback
+      : (fn) => setTimeout(fn, 2000);
+
+    schedule(() => {
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", inject);
       } else {
         inject();
       }
-    }, 100);
+    });
   }
 
   /**
