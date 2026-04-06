@@ -439,6 +439,13 @@ export function createRevalidateHandler({ secret }) {
     }
 
     const revalidated = [];
+
+    // Always revalidate the root layout so navbar/footer update
+    try {
+      revalidatePath("/", "layout");
+      revalidated.push("/ (layout)");
+    } catch {}
+
     for (const p of paths) {
       try {
         revalidatePath(p);
