@@ -378,5 +378,3 @@ export class CartModule {
 }
 
 export default CartModule;
-
-export default CartModule;
