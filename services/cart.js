@@ -375,6 +375,20 @@ export class CartModule {
     await this.load(this._cartId);
     return result;
   }
+
+  // ===========================================================================
+  // CART TIER DISCOUNTS
+  // ===========================================================================
+
+  /**
+   * Fetch active cart tier discounts for the organization.
+   * Used to show discount incentives before a customer qualifies.
+   * @returns {Promise<{tiers: Array<{id: string, name: string, min_subtotal: string, discount_percentage: string, display_order: number}>}>}
+   */
+  async getTierDiscounts() {
+    const url = `${this.client.baseURL}/api/storefront/cart-tier-discounts`;
+    return this.client._fetch(url);
+  }
 }
 
 export default CartModule;
