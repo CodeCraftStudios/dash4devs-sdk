@@ -362,14 +362,19 @@ export class CartModule {
    * Add an upsell product to the cart at the discounted price.
    * @param {string} upsellId - UpsellProduct ID
    * @param {string} sessionId - CheckoutUpsellSession ID
+   * @param {string} [sizeId] - Optional size override when the upsell was
+   *   created in "All variations" mode. Pass the ProductSize ID of the
+   *   variation the customer picked. Ignored for fixed-variation upsells.
    * @returns {Promise<{cart_id: string, item: Object, message: string}>}
    */
-  async addUpsellToCart(upsellId, sessionId) {
+  async addUpsellToCart(upsellId, sessionId, sizeId = null) {
     if (!this._cartId) throw new Error("No active cart");
     const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/upsells/add`;
+    const body = { upsell_id: upsellId, session_id: sessionId };
+    if (sizeId) body.size_id = sizeId;
     const result = await this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({ upsell_id: upsellId, session_id: sessionId }),
+      body: JSON.stringify(body),
     });
     // Refresh cart state after adding upsell
     await this.load(this._cartId);
