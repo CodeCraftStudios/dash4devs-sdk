@@ -271,18 +271,29 @@ export class CartModule {
         this._cartId = response.cart_id;
       }
 
-      await this.get();
-      return response;
+      // Always return the fresh, fully-hydrated cart state (tier discount,
+      // next tier, etc.) rather than the bare migrate response.
+      return await this.get();
     } catch (error) {
       console.error("Cart migration failed:", error);
-      this._cartId = null;
-      return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
+      // Fall back to a fresh loadUserCart in case the guest cart couldn't
+      // be migrated but the user has a server-side cart waiting.
+      try {
+        return await this.loadUserCart();
+      } catch (e) {
+        this._cartId = null;
+        return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
+      }
     }
   }
 
   /**
-   * Load user's cart after login (fetches cart associated with authenticated user)
-   * @returns {Promise<{cart_id: string, items: Array, subtotal: string, item_count: number}>}
+   * Load the authenticated user's cart from the backend.
+   * Uses the /storefront/cart/user endpoint which resolves the cart by
+   * customer FK rather than by localStorage cart_id, so it works across
+   * devices/browsers and always reflects the latest server state.
+   *
+   * @returns {Promise<Object>} Full cart state.
    */
   async loadUserCart() {
     const token = this.client.auth?._accessToken;
@@ -296,18 +307,69 @@ export class CartModule {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (response.cart_id) {
-        this._cartId = response.cart_id;
-        this._items = response.items || [];
-        this._subtotal = response.subtotal || "0.00";
-        this._itemCount = response.item_count || 0;
-      }
+      // Always sync local state to the server response — including empty carts
+      // (previously this was gated on response.cart_id which left stale data
+      // when the user had no cart yet).
+      this._cartId = response.cart_id || null;
+      this._items = response.items || [];
+      this._subtotal = response.subtotal || "0.00";
+      this._itemCount = response.item_count || 0;
 
       return response;
     } catch (error) {
       console.error("Failed to load user cart:", error);
+      this.reset();
       return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
     }
+  }
+
+  /**
+   * Initialize the cart on app mount.
+   *
+   * Decides the right load strategy based on auth state:
+   *   - Authenticated user → load cart by customer FK (model-based).
+   *     If a guest `fallbackCartId` is also present, merge it into the
+   *     user's cart before returning.
+   *   - Guest (no auth)    → load cart by the provided `fallbackCartId`
+   *     (typically persisted in localStorage).
+   *   - Neither            → empty cart.
+   *
+   * Always returns the full current cart state from the server.
+   *
+   * @param {string|null} fallbackCartId - Guest cart ID from localStorage, if any.
+   * @returns {Promise<Object>} Full cart state.
+   */
+  async init(fallbackCartId = null) {
+    const hasToken = !!this.client.auth?._accessToken;
+
+    if (hasToken) {
+      // Authenticated: prefer model-based cart (FK on customer).
+      if (fallbackCartId) {
+        // Attempt to merge an existing guest cart into the user's cart.
+        // migrateToUser falls back to loadUserCart if there's nothing to merge.
+        this._cartId = fallbackCartId;
+        try {
+          return await this.migrateToUser();
+        } catch (e) {
+          // If migration fails, just load the user's cart directly.
+          return await this.loadUserCart();
+        }
+      }
+      return await this.loadUserCart();
+    }
+
+    // Guest: restore by cart_id from localStorage if we have one.
+    if (fallbackCartId) {
+      try {
+        await this.load(fallbackCartId);
+        return await this.get();
+      } catch (e) {
+        this.reset();
+      }
+    }
+
+    this.reset();
+    return { cart_id: null, items: [], subtotal: "0.00", item_count: 0 };
   }
 
   /**

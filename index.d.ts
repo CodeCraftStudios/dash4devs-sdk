@@ -869,6 +869,49 @@ declare class CartModule {
   addUpsellToCart(upsellId: string, sessionId: string): Promise<{
     cart_id: string; item: CartItem; message: string
   }>;
+
+  /**
+   * Initialize the cart on app mount.
+   *
+   * Picks the right loading strategy based on auth state:
+   *   - Authenticated user → loads the cart tied to the customer FK
+   *     (model-based). If a guest `fallbackCartId` is also present, the
+   *     guest cart is merged into the user's cart before returning.
+   *   - Guest (no auth)    → restores the cart via `fallbackCartId`
+   *     (typically persisted in localStorage).
+   *   - Neither            → empty cart.
+   *
+   * Always returns the fully-hydrated cart state from the server.
+   */
+  init(fallbackCartId?: string | null): Promise<CartGetResponse>;
+
+  /**
+   * Load the authenticated user's cart from the backend by customer FK.
+   * Works across devices/browsers. Requires an active access token on
+   * the client's auth module.
+   */
+  loadUserCart(): Promise<CartGetResponse>;
+
+  /**
+   * Migrate a guest cart to the authenticated user's cart. Falls back to
+   * `loadUserCart()` if there is no guest cart to migrate.
+   */
+  migrateToUser(): Promise<CartGetResponse>;
+
+  /**
+   * Reset cart state (used on logout).
+   */
+  reset(): void;
+
+  /**
+   * Apply a discount code to the cart.
+   */
+  applyDiscount(code: string): Promise<{ message: string; cart: CartGetResponse }>;
+
+  /**
+   * Remove the active discount code from the cart.
+   */
+  removeDiscount(): Promise<{ message: string; cart: CartGetResponse }>;
 }
 
 declare class PagesModule {
