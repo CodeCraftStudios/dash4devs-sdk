@@ -87,8 +87,10 @@ export class DashClient {
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
     this._sessionId = null;
+    this.version = "0.1.0";
 
-    // Startup info table
+    // Startup info table — prints once per process, not per DashClient instance
+    // (Next.js SSR creates a new client per request/worker, which used to spam logs)
     this._printStartupInfo();
 
     // Initialize modules
@@ -125,9 +127,6 @@ export class DashClient {
       this.contentTypes = new ContentTypesModule(this);
     }
 
-    // SDK version
-    this.version = "0.1.0";
-
     // Inject footer branding for all keys (production and test)
     if (typeof window !== "undefined") {
       this._injectFooterBranding();
@@ -146,6 +145,15 @@ export class DashClient {
   _printStartupInfo() {
     // Only print on server side (terminal) — never expose key info in browser
     if (typeof window !== "undefined") return;
+
+    // Guard: print once per (process, apiKey) pair. Next.js SSR instantiates a
+    // new DashClient per request/worker so the banner used to fire dozens of
+    // times per page. Setting DASH4DEVS_SILENT=1 silences it entirely.
+    if (process.env.DASH4DEVS_SILENT === "1") return;
+    if (!globalThis.__DASH4DEVS_PRINTED__) globalThis.__DASH4DEVS_PRINTED__ = new Set();
+    const fingerprint = `${this.apiKey}|${this.baseURL}`;
+    if (globalThis.__DASH4DEVS_PRINTED__.has(fingerprint)) return;
+    globalThis.__DASH4DEVS_PRINTED__.add(fingerprint);
 
     const maskKey = (key) => {
       if (!key || key.length < 8) return key;
