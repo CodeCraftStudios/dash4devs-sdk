@@ -26,7 +26,7 @@
  *   - No LQIP?    Skips the blur background.
  */
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const DEFAULT_SIZES = "100vw";
 
@@ -50,6 +50,16 @@ export function DashImage({
   ...imgProps
 }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef(null);
+
+  // Cache-hit safety net: if the browser already has the selected <source>
+  // in cache when the component mounts, onLoad never fires and the img is
+  // stuck at opacity 0 — showing only the LQIP background.
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, []);
 
   if (!image || !image.url) return null;
 
@@ -91,12 +101,14 @@ export function DashImage({
         {avifSet && <source type="image/avif" srcSet={avifSet} sizes={sizes} />}
         {webpSet && <source type="image/webp" srcSet={webpSet} sizes={sizes} />}
         <img
+          ref={imgRef}
           src={fallback}
           alt={alt}
           loading={priority ? "eager" : "lazy"}
           decoding={priority ? "sync" : "async"}
-          fetchpriority={priority ? "high" : undefined}
+          fetchPriority={priority ? "high" : undefined}
           onLoad={handleLoad}
+          onError={() => setLoaded(true)}
           style={imgStyle}
           {...imgProps}
         />
