@@ -74,15 +74,14 @@ export function DashImage({
     onError?.(e);
   };
 
-  // Wrapper paints the LQIP behind the img while it loads. Must be block
-  // so width/height: 100% on the img actually resolve to the card size.
+  // Don't force `display` — callers pass Tailwind responsive visibility
+  // classes like "hidden md:block" via className; an inline display value
+  // would override them. No base64 LQIP is painted on the wrapper: inlining
+  // a ~400-byte data URI per image bloats HTML heavily on list pages, and
+  // the <img> paints fast enough from CDN+cache that the blur was net-negative.
   const wrapperStyle = {
     position: "relative",
-    display: "block",
     overflow: "hidden",
-    backgroundImage: !blurDisabled && image.lqip ? `url(${image.lqip})` : undefined,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
     ...style,
   };
 
