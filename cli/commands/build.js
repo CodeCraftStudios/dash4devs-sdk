@@ -116,11 +116,13 @@ export async function run(args) {
 
 function runNextBuild(cwd) {
   return new Promise((resolve, reject) => {
-    const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
-    const child = spawn(cmd, ["next", "build"], {
+    // shell: true is required on Windows so Node can resolve `.cmd` shims
+    // (npx.cmd, next.cmd). Harmless on POSIX.
+    const child = spawn("npx next build", {
       cwd,
       stdio: "inherit",
       env: process.env,
+      shell: true,
     });
     child.on("exit", (code) => {
       if (code === 0) resolve();
