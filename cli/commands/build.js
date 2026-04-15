@@ -142,7 +142,9 @@ function readNextVersion(cwd) {
 }
 
 function writeAssetPrefix(cwd, prefix) {
-  const envPath = path.join(cwd, ".env.local");
+  // Write to .env.production so `next build` picks it up but `next dev`
+  // never sees it. Dev mode chunks are local-only and would 404 on the CDN.
+  const envPath = path.join(cwd, ".env.production");
   let lines = [];
   if (fs.existsSync(envPath)) {
     lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/).filter(
@@ -151,4 +153,16 @@ function writeAssetPrefix(cwd, prefix) {
   }
   lines.push(`NEXT_PUBLIC_ASSET_PREFIX=${prefix}`);
   fs.writeFileSync(envPath, lines.join("\n"));
+
+  // If the prefix is stuck in .env.local from an older CLI, remove it so
+  // dev mode stops trying to hit the CDN.
+  const localPath = path.join(cwd, ".env.local");
+  if (fs.existsSync(localPath)) {
+    const localLines = fs.readFileSync(localPath, "utf8").split(/\r?\n/);
+    const hadPrefix = localLines.some((l) => l.startsWith("NEXT_PUBLIC_ASSET_PREFIX="));
+    if (hadPrefix) {
+      const cleaned = localLines.filter((l) => !l.startsWith("NEXT_PUBLIC_ASSET_PREFIX="));
+      fs.writeFileSync(localPath, cleaned.join("\n"));
+    }
+  }
 }
