@@ -32,10 +32,10 @@ export function createApi({ apiUrl, apiKey }) {
   }
 
   return {
-    manifest: (payload) => request("POST", "/v1/cdn/manifest", payload),
-    confirmUpload: (sha256) => request("POST", "/v1/cdn/uploaded", { sha256 }),
-    activate: (deploy_id) => request("POST", "/v1/cdn/activate", { deploy_id }),
-    purge: (paths) => request("POST", "/v1/cdn/purge", { paths }),
-    status: () => request("GET", "/v1/cdn/status"),
+    manifest: (payload) => request("POST", "/api/v1/cdn/manifest", payload),
+    confirmUpload: (sha256) => request("POST", "/api/v1/cdn/uploaded", { sha256 }),
+    activate: (deploy_id) => request("POST", "/api/v1/cdn/activate", { deploy_id }),
+    purge: (paths) => request("POST", "/api/v1/cdn/purge", { paths }),
+    status: () => request("GET", "/api/v1/cdn/status"),
   };
 }
