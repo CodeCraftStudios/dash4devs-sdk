@@ -26,7 +26,7 @@
  *   - No LQIP?    Skips the blur background.
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 
 const DEFAULT_SIZES = "100vw";
 
@@ -47,37 +47,38 @@ export function DashImage({
   priority = false,
   blurDisabled = false,
   onLoad,
+  onError,
   ...imgProps
 }) {
-  const [loaded, setLoaded] = useState(false);
-  const imgRef = useRef(null);
-
-  // Cache-hit safety net: if the browser already has the selected <source>
-  // in cache when the component mounts, onLoad never fires and the img is
-  // stuck at opacity 0 — showing only the LQIP background.
-  useEffect(() => {
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setLoaded(true);
-    }
-  }, []);
+  // Error state flips the <picture> to bare-img-with-original-url mode.
+  // Any variant 404 / decode failure falls back to image.url so users see
+  // *something* even when the pipeline's output is stale or unreachable.
+  const [variantError, setVariantError] = useState(false);
 
   if (!image || !image.url) return null;
 
-  const variants = image.variants_ready ? image.variants : null;
+  const variants = !variantError && image.variants_ready ? image.variants : null;
   const avifSet = variants ? buildSrcSet(variants.avif) : "";
   const webpSet = variants ? buildSrcSet(variants.webp) : "";
 
-  // Largest variant for the <img> fallback (browsers without <picture>).
-  const fallback = variants?.webp?.[variants.webp.length - 1]?.url || image.url;
+  // When variants are available we use the largest WebP as the <img> src
+  // (also what Safari<14 / picture-unaware browsers will load). On error
+  // we rebuild with the original source URL — always guaranteed to exist
+  // because that's what the CMS stored.
+  const src = variants
+    ? (variants.webp?.[variants.webp.length - 1]?.url || image.url)
+    : image.url;
 
-  const handleLoad = (e) => {
-    setLoaded(true);
-    onLoad?.(e);
+  const handleError = (e) => {
+    if (!variantError) setVariantError(true);
+    onError?.(e);
   };
 
-  // The wrapper paints the LQIP. Position is relative so the image sits inside.
+  // Wrapper paints the LQIP behind the img while it loads. Must be block
+  // so width/height: 100% on the img actually resolve to the card size.
   const wrapperStyle = {
     position: "relative",
+    display: "block",
     overflow: "hidden",
     backgroundImage: !blurDisabled && image.lqip ? `url(${image.lqip})` : undefined,
     backgroundSize: "cover",
@@ -85,30 +86,26 @@ export function DashImage({
     ...style,
   };
 
-  // Fade in once the real image paints to hide the LQIP transition.
   const imgStyle = {
     display: "block",
     width: "100%",
     height: "100%",
     objectFit: "cover",
-    transition: "opacity 200ms ease-out",
-    opacity: loaded ? 1 : 0,
   };
 
   return (
     <span style={wrapperStyle} className={className}>
-      <picture>
+      <picture style={{ display: "block", width: "100%", height: "100%" }}>
         {avifSet && <source type="image/avif" srcSet={avifSet} sizes={sizes} />}
         {webpSet && <source type="image/webp" srcSet={webpSet} sizes={sizes} />}
         <img
-          ref={imgRef}
-          src={fallback}
+          src={src}
           alt={alt}
           loading={priority ? "eager" : "lazy"}
           decoding={priority ? "sync" : "async"}
           fetchPriority={priority ? "high" : undefined}
-          onLoad={handleLoad}
-          onError={() => setLoaded(true)}
+          onLoad={onLoad}
+          onError={handleError}
           style={imgStyle}
           {...imgProps}
         />
