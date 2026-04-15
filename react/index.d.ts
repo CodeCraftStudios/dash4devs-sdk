@@ -92,3 +92,36 @@ export interface DashProviderProps {
 
 export function DashProvider(props: DashProviderProps): JSX.Element;
 export function useDash(): { client: DashClient };
+
+// ============================================================================
+// DashImage
+// ============================================================================
+
+export interface DashImageVariant {
+  width: number;
+  url: string;
+}
+
+export interface DashImageData {
+  url: string;
+  lqip?: string | null;
+  variants_ready?: boolean;
+  variants?: {
+    webp?: DashImageVariant[];
+    avif?: DashImageVariant[];
+  };
+  width?: number;
+  height?: number;
+}
+
+export interface DashImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src"> {
+  image: DashImageData | null | undefined;
+  alt?: string;
+  sizes?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  priority?: boolean;
+  blurDisabled?: boolean;
+}
+
+export function DashImage(props: DashImageProps): JSX.Element | null;
