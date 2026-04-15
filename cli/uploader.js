@@ -49,11 +49,7 @@ export async function uploadAll({ api, entries, needsUpload, concurrency = DEFAU
         const body = fs.readFileSync(entry.absolute);
         const res = await fetch(item.upload_url, {
           method: "PUT",
-          headers: {
-            "Content-Type": entry.content_type || "application/octet-stream",
-            // DO Spaces requires x-amz-acl to match what the URL was signed with
-            "x-amz-acl": "public-read",
-          },
+          headers: { "Content-Type": entry.content_type || "application/octet-stream" },
           body,
         });
         if (!res.ok) throw new Error(`PUT ${res.status}`);
