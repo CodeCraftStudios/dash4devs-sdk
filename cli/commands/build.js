@@ -29,7 +29,7 @@ import {
 import chalk from "chalk";
 import ora from "ora";
 
-const PKG_VERSION = "0.1.0";
+const PKG_VERSION = "0.1.1";
 
 export async function run(args) {
   const skipBuild = args.includes("--skip-build");
