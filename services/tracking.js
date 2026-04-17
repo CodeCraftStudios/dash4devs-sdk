@@ -199,6 +199,8 @@ export class TrackingModule {
     this._lastTrackedPath = currentPath;
     this.pageview(currentPath);
     this.trackVisit();
+    // Fire Meta Pixel PageView for SPA transitions (base pixel fires once on initial load)
+    this.fbqPageView();
   }
 
   /**
@@ -428,6 +430,76 @@ export class TrackingModule {
       items: order.items || [],
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Meta Pixel (Facebook)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fire a Meta Pixel standard event.
+   * Requires the base pixel to be installed in the page.
+   * Supported standard events: ViewContent, AddToCart, AddToWishlist,
+   * CompleteRegistration, Contact, CustomizeProduct, Donate, FindLocation,
+   * InitiateCheckout, Lead, Purchase, Schedule, Search, StartTrial,
+   * SubmitApplication, Subscribe, AddPaymentInfo.
+   *
+   * @param {string} eventName - Meta standard event name
+   * @param {Object} [params] - Event parameters (value, currency, content_ids, etc.)
+   * @param {Object} [options] - Optional fbq options (eventID for deduplication)
+   */
+  fbqEvent(eventName, params = {}, options) {
+    if (typeof window === "undefined" || typeof window.fbq !== "function") return;
+    try {
+      if (options) {
+        window.fbq("track", eventName, params, options);
+      } else {
+        window.fbq("track", eventName, params);
+      }
+      this._log(`fbq Event: ${eventName}`);
+    } catch (err) {
+      this._log(`fbq ${eventName} failed: ${err.message}`, "error");
+    }
+  }
+
+  /**
+   * Fire a Meta Pixel custom (non-standard) event.
+   * @param {string} eventName - Custom event name
+   * @param {Object} [params] - Event parameters
+   * @param {Object} [options] - Optional fbq options
+   */
+  fbqCustom(eventName, params = {}, options) {
+    if (typeof window === "undefined" || typeof window.fbq !== "function") return;
+    try {
+      if (options) {
+        window.fbq("trackCustom", eventName, params, options);
+      } else {
+        window.fbq("trackCustom", eventName, params);
+      }
+      this._log(`fbq Custom: ${eventName}`);
+    } catch (err) {
+      this._log(`fbq custom ${eventName} failed: ${err.message}`, "error");
+    }
+  }
+
+  /**
+   * Fire a Meta Pixel PageView event. The base pixel already fires one on
+   * initial page load — call this only for SPA route changes.
+   */
+  fbqPageView() {
+    this.fbqEvent("PageView");
+  }
+
+  fbqViewContent(params = {}) { this.fbqEvent("ViewContent", params); }
+  fbqAddToCart(params = {}) { this.fbqEvent("AddToCart", params); }
+  fbqAddToWishlist(params = {}) { this.fbqEvent("AddToWishlist", params); }
+  fbqInitiateCheckout(params = {}) { this.fbqEvent("InitiateCheckout", params); }
+  fbqAddPaymentInfo(params = {}) { this.fbqEvent("AddPaymentInfo", params); }
+  fbqPurchase(params = {}) { this.fbqEvent("Purchase", params); }
+  fbqSearch(params = {}) { this.fbqEvent("Search", params); }
+  fbqLead(params = {}) { this.fbqEvent("Lead", params); }
+  fbqContact(params = {}) { this.fbqEvent("Contact", params); }
+  fbqCompleteRegistration(params = {}) { this.fbqEvent("CompleteRegistration", params); }
+  fbqSubscribe(params = {}) { this.fbqEvent("Subscribe", params); }
 
   /** @private */
   async _initThoughtMetric(projectId) {
