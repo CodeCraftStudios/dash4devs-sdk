@@ -2081,6 +2081,17 @@ export interface MediaFolderResponse {
   items: MediaItem[];
 }
 
+export interface MediaByNameResponse {
+  file: {
+    id: string;
+    name: string;
+    url: string;
+    alt_text: string;
+    width: number | null;
+    height: number | null;
+  };
+}
+
 export declare class MediaModule {
   constructor(client: DashClient);
 
@@ -2097,6 +2108,16 @@ export declare class MediaModule {
    * const heroes = await dash.media.getFolder("gallery_01", { metadata: { type: "hero" } });
    */
   getFolder(folderName: string, options?: MediaGetFolderOptions): Promise<MediaFolderResponse>;
+
+  /**
+   * Get a single media file by its name field
+   * @param name - The exact name of the media file (e.g. "brick_desktop")
+   *
+   * @example
+   * const { file } = await dash.media.getByName("brick_desktop");
+   * console.log(file.url);
+   */
+  getByName(name: string): Promise<MediaByNameResponse>;
 }
 
 export declare class EmailModule {
