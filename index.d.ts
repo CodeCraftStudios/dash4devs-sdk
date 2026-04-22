@@ -91,6 +91,15 @@ export interface FreestyleSlot {
   options: FreestyleSlotOption[];
 }
 
+/**
+ * Bundle type for a product.
+ * - "" — not a bundle
+ * - "fixed" — preset list of included products
+ * - "freestyle" — multiple named slots, customer fills each one
+ * - "choose" — single mixed pool, customer picks N total from it
+ */
+export type BundleType = "" | "fixed" | "freestyle" | "choose";
+
 export interface Product {
   id: string;
   name: string;
@@ -100,7 +109,7 @@ export interface Product {
   price: string | null;
   discounted_price: string | null;
   in_stock: boolean;
-  bundle_type?: string;
+  bundle_type?: BundleType;
   is_bundle?: boolean;
 
   /**
@@ -137,7 +146,9 @@ export interface Product {
 
   /** Bundle includes for fixed bundles */
   includes?: any[] | null;
-  /** Freestyle bundle slots (only present for freestyle bundles) */
+  /** Freestyle/Choose bundle slots (present for freestyle and choose bundles).
+   *  A freestyle bundle has multiple named slots; a choose bundle has exactly
+   *  one slot whose options span a mixed pool of products. */
   freestyle_slots?: FreestyleSlot[] | null;
 }
 
@@ -429,7 +440,7 @@ export interface ProductCoreResponse {
       keywords: string | null;
       og_image: string | null;
     };
-    bundle_type: string | null;
+    bundle_type: BundleType | null;
     custom_fields: Record<string, any>;
   };
 }
@@ -467,9 +478,9 @@ export interface ProductOptionsResponse {
       }[];
     }[];
     includes: any[] | null;
-    freestyle_slots: any[] | null;
+    freestyle_slots: FreestyleSlot[] | null;
     related: Product[];
-    bundle_type: string | null;
+    bundle_type: BundleType | null;
     is_bundle: boolean;
   };
 }
