@@ -73,6 +73,12 @@ export class AuthModule {
     });
 
     this._accessToken = response.access_token;
+    // Refresh-token rotation (server may issue a fresh refresh token on
+    // every refresh). Adopt it if present so the next refresh uses the
+    // current row and the old one is burned server-side.
+    if (response.refresh_token) {
+      this._refreshToken = response.refresh_token;
+    }
     return response;
   }
 

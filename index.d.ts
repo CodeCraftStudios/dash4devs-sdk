@@ -2228,6 +2228,253 @@ export declare class EarnPointsModule {
 }
 
 // =============================================================================
+// FORMS MODULE
+// =============================================================================
+
+/**
+ * A single field in a dashboard-built form schema.
+ * The `type` drives which input widget the React hook renders.
+ */
+export interface FormFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface FormFieldShowWhen {
+  /** Name of the field whose value gates this field's visibility */
+  field: string;
+  /** Required value for the gate field */
+  equals: unknown;
+}
+
+export type FormFieldType =
+  | "text"
+  | "email"
+  | "tel"
+  | "url"
+  | "number"
+  | "date"
+  | "hidden"
+  | "textarea"
+  | "select"
+  | "multiselect"
+  | "checkbox"
+  | "radio"
+  | "file"
+  | "signature";
+
+export interface FormField {
+  name: string;
+  label: string;
+  type: FormFieldType | string;
+  required?: boolean;
+  required_message?: string;
+  placeholder?: string;
+  help_text?: string;
+  options?: FormFieldOption[];
+  show_when?: FormFieldShowWhen | null;
+  max_length?: number | null;
+  min_length?: number | null;
+  /** File-input accept attribute */
+  accept?: string;
+  /** Signature canvas size hints */
+  signature_width?: number;
+  signature_height?: number;
+  disabled?: boolean;
+  [key: string]: any;
+}
+
+export interface FormSchema {
+  slug: string;
+  title: string;
+  description: string;
+  fields: FormField[];
+  success_message?: string;
+  redirect_url?: string;
+  [key: string]: any;
+}
+
+export interface FormGetResponse {
+  form: FormSchema;
+}
+
+export interface FormSignaturePayload {
+  field_name?: string;
+  value: string;
+}
+
+export interface FormSubmitPayload {
+  /** Field-name keyed answers (same shape as FormField.name -> value). */
+  answers: Record<string, unknown>;
+  /** Optional signature submissions (typed name or `data:image/...`). */
+  signatures?: FormSignaturePayload[];
+  /** URL of the page that originated the submission. */
+  source_url?: string;
+}
+
+export interface FormSubmitResponse {
+  success: boolean;
+  submission_id: string;
+  submitted_at: string;
+  success_message: string;
+  redirect_url: string;
+  /** Optional server-computed score (e.g. for screening forms). */
+  score?: unknown;
+}
+
+export declare class FormsModule {
+  constructor(client: DashClient);
+
+  /** Fetch the published form schema for `slug`. */
+  get(slug: string): Promise<FormGetResponse>;
+
+  /** Submit answers + signatures to form `slug`. */
+  submit(slug: string, payload: FormSubmitPayload): Promise<FormSubmitResponse>;
+}
+
+// =============================================================================
+// PAGE GROUPS MODULE
+// =============================================================================
+
+/**
+ * Metadata describing a Page Group (a content collection like Services,
+ * Industries, Locations, FAQ, etc.). Returned by `pageGroups.list()`.
+ */
+export interface PageGroupSummary {
+  id: string;
+  /** Human-readable singular name (e.g. "Service") */
+  name: string;
+  /** Human-readable plural name (e.g. "Services") */
+  plural_name?: string;
+  /** Storefront slug used in URLs and SDK calls */
+  slug: string;
+  /** Optional URL pattern for individual items (e.g. "/services/{slug}") */
+  singular_path?: string;
+  /** Number of published items in this group */
+  item_count: number;
+  [key: string]: any;
+}
+
+/**
+ * A single published item inside a Page Group.
+ *
+ * The shape is intentionally loose — Page Groups are user-defined in the
+ * dashboard, so `metadata` and `custom_fields` are open-ended. Top-level
+ * fields are guaranteed by the storefront API.
+ */
+export interface PageGroupItem {
+  id: string;
+  title: string;
+  slug: string;
+  /** HTML content body (rendered from the dashboard editor) */
+  content: string;
+  /** Short summary for list/card views */
+  excerpt: string;
+  featured_image: string | null;
+  featured_image_alt?: string;
+  /** Free-form structured fields configured on the group */
+  custom_fields: Record<string, any>;
+  /** Free-form metadata (status flags, ordering, etc.) */
+  metadata: Record<string, any>;
+  /** SEO title override (falls back to `title`) */
+  seo_title?: string | null;
+  seo_description?: string | null;
+  seo_keywords?: string | null;
+  og_image?: string | null;
+  published_at?: string | null;
+  created_at?: string;
+  [key: string]: any;
+}
+
+export interface PageGroupAllOptions {
+  /** Max items returned (default: 50) */
+  limit?: number;
+  /** Pagination offset (default: 0) */
+  offset?: number;
+}
+
+export interface PageGroupListResponse {
+  content_types: PageGroupSummary[];
+}
+
+export interface PageGroupItemsResponse {
+  content_type: PageGroupSummary;
+  items: PageGroupItem[];
+  total: number;
+}
+
+export interface PageGroupItemResponse {
+  item: PageGroupItem;
+}
+
+/**
+ * Object-spec predicate: each key must equal the item's value.
+ * Lookups walk top-level fields, then `metadata`, then `custom_fields`.
+ */
+export type PageGroupFilterSpec = Record<string, unknown>;
+
+export type PageGroupPredicate =
+  | ((item: PageGroupItem) => boolean)
+  | PageGroupFilterSpec;
+
+/**
+ * Fluent query builder for a single Page Group. Returned by
+ * `dash.pageGroup(slug)` and `dash.pageGroups.group(slug)`.
+ */
+export declare class PageGroup {
+  constructor(client: DashClient, slug: string);
+
+  readonly client: DashClient;
+  readonly slug: string;
+
+  /** Fetch every published item in this group (paginated). */
+  all(options?: PageGroupAllOptions): Promise<PageGroupItemsResponse>;
+
+  /**
+   * Filter items in this group using a predicate function or an object
+   * spec. Filtering runs client-side after `all()`.
+   */
+  filter(
+    predicate: PageGroupPredicate,
+    options?: PageGroupAllOptions,
+  ): Promise<PageGroupItem[]>;
+
+  /** Fetch a single published item by its slug. */
+  get(itemSlug: string): Promise<PageGroupItemResponse>;
+
+  /** Find the first item matching the predicate, or `null`. */
+  find(predicate: PageGroupPredicate): Promise<PageGroupItem | null>;
+
+  /** Count published items (uses pagination metadata). */
+  count(): Promise<number>;
+}
+
+export declare class PageGroupsModule {
+  constructor(client: DashClient);
+
+  /** List every published Page Group (collection metadata, not items). */
+  list(): Promise<PageGroupListResponse>;
+
+  /** Get a fluent builder for a specific group. */
+  group(slug: string): PageGroup;
+}
+
+// =============================================================================
+// CONTENT TYPES MODULE (legacy — prefer PageGroupsModule)
+// =============================================================================
+
+/**
+ * @deprecated Use `dash.pageGroup(slug)` or `dash.pageGroups` instead.
+ * Kept for backwards compatibility; will be removed in a future major version.
+ */
+export declare class ContentTypesModule {
+  constructor(client: DashClient);
+  list(): Promise<PageGroupListResponse>;
+  listItems(typeSlug: string, options?: PageGroupAllOptions): Promise<PageGroupItemsResponse>;
+  getItem(typeSlug: string, itemSlug: string): Promise<PageGroupItemResponse>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -2299,6 +2546,41 @@ export declare class DashClient {
 
   /** Earn Points (social task completion for loyalty points) */
   readonly earnPoints: EarnPointsModule;
+
+  /**
+   * Forms API — dashboard-built intake / contact / lead-capture / signed
+   * forms. Pair with `useDashForm` (from `dash4devs/react`) for a
+   * Django-template-style hook that owns form state.
+   *
+   * @example
+   * const { form } = await dash.forms.get("contact");
+   * await dash.forms.submit("contact", { answers: { email: "..." } });
+   */
+  readonly forms: FormsModule;
+
+  /**
+   * Page Groups API — storefront content collections (Services, Industries,
+   * Locations, FAQ, etc.) configured in the dashboard.
+   *
+   * @example
+   * const { items } = await dash.pageGroups.group("services").all();
+   */
+  readonly pageGroups: PageGroupsModule;
+
+  /**
+   * Fluent shortcut: `dash.pageGroup(slug)` ≡ `dash.pageGroups.group(slug)`.
+   *
+   * @example
+   * const { items } = await dash.pageGroup("services").all();
+   * const { item }  = await dash.pageGroup("services").get("kitchen-remodel");
+   */
+  pageGroup(slug: string): PageGroup;
+
+  /**
+   * @deprecated Use `pageGroup(slug)` or `pageGroups`.
+   * Legacy alias for the same storefront content-type endpoints.
+   */
+  readonly contentTypes: ContentTypesModule;
 
   /**
    * Health check - validates API key and returns organization info

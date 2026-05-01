@@ -13,3 +13,5 @@ export { CartProvider, useCart } from "./CartProvider.jsx";
 export { AuthProvider, useAuth } from "./AuthProvider.jsx";
 export { DashProvider, useDash } from "./DashProvider.jsx";
 export { DashImage, default as DashImageDefault } from "./DashImage.jsx";
+export { SignaturePad } from "./SignaturePad.jsx";
+export { useDashForm } from "./useDashForm.jsx";

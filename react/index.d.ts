@@ -125,3 +125,112 @@ export interface DashImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageEl
 }
 
 export function DashImage(props: DashImageProps): JSX.Element | null;
+
+// ============================================================================
+// SignaturePad
+// ============================================================================
+
+export interface SignaturePadHandle {
+  /** Wipe the canvas and emit "" to onChange. */
+  clear: () => void;
+  /** True if no strokes have been drawn since the last clear. */
+  isEmpty: () => boolean;
+  /** Current canvas as a base64 PNG data URL. */
+  toDataURL: () => string;
+}
+
+export interface SignaturePadProps {
+  /** Current value (base64 PNG data URL, or "" for empty). */
+  value?: string;
+  /** Fired with the new data URL when the user finishes a stroke. */
+  onChange?: (value: string) => void;
+  /** CSS pixel width of the canvas (drawing buffer scales for HiDPI). */
+  width?: number;
+  /** CSS pixel height of the canvas. */
+  height?: number;
+  className?: string;
+  style?: React.CSSProperties;
+  strokeColor?: string;
+  backgroundColor?: string;
+  disabled?: boolean;
+  clearLabel?: string;
+  placeholder?: string;
+  signedLabel?: string;
+  showStatus?: boolean;
+}
+
+export const SignaturePad: React.ForwardRefExoticComponent<
+  SignaturePadProps & React.RefAttributes<SignaturePadHandle>
+>;
+
+// ============================================================================
+// useDashForm
+// ============================================================================
+
+export interface DashFormFieldAccessor {
+  name: string;
+  label: string;
+  helpText?: string;
+  type: string;
+  required: boolean;
+  options: { value: string; label: string }[];
+  visible: boolean;
+  value: unknown;
+  set: (value: unknown) => void;
+  error: string | null;
+  touched: boolean;
+  /** Render a fully-configured input element for this field. */
+  input: (extraProps?: Record<string, any>) => React.ReactNode;
+  /** True if the form schema has no field with this name. */
+  missing: boolean;
+}
+
+export interface UseDashFormOptions {
+  /** Explicit DashClient (defaults to the one from <DashProvider>). */
+  client?: DashClient;
+  /** Pre-fill values keyed by field name. */
+  initialValues?: Record<string, unknown>;
+  /** Fired after a successful submit with the API response. */
+  onSuccess?: (response: any) => void;
+  /** Fired after a failed submit with the thrown error. */
+  onError?: (err: any) => void;
+}
+
+export interface UseDashFormResult {
+  // Schema
+  slug: string;
+  title: string;
+  description: string;
+  fields: any[];
+
+  // Lifecycle
+  loading: boolean;
+  loadError: string | null;
+
+  // Field access (Django-template style)
+  field: (name: string) => DashFormFieldAccessor;
+
+  // Submission
+  handleSubmit: (
+    onSuccess?: (response: any) => void,
+  ) => (e?: React.FormEvent) => Promise<void>;
+  submitting: boolean;
+  success: boolean;
+  successMessage: string;
+  redirectUrl: string;
+  formError: string | null;
+  score: unknown;
+
+  // Raw state (escape hatch)
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  touched: Record<string, boolean>;
+  setFieldValue: (name: string, value: unknown) => void;
+  setValues: React.Dispatch<React.SetStateAction<Record<string, unknown>>>;
+  reset: () => void;
+}
+
+export function useDashForm(
+  slug: string,
+  options?: UseDashFormOptions,
+): UseDashFormResult;

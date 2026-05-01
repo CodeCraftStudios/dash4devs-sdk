@@ -33,6 +33,8 @@ import { EarnPointsModule } from "./services/earn-points.js";
 import { SitemapModule } from "./services/sitemap.js";
 import { AdminModule } from "./services/admin.js";
 import { ContentTypesModule } from "./services/content-types.js";
+import { PageGroupsModule, PageGroup } from "./services/page-groups.js";
+import { FormsModule } from "./services/forms.js";
 import { CalendarModule } from "./services/calendar.js";
 
 // =============================================================================
@@ -87,7 +89,7 @@ export class DashClient {
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
     this._sessionId = null;
-    this.version = "0.1.2";
+    this.version = "0.1.3-alpha";
 
     // Startup info table — prints once per process, not per DashClient instance
     // (Next.js SSR creates a new client per request/worker, which used to spam logs)
@@ -121,11 +123,31 @@ export class DashClient {
     this.sitemap = new SitemapModule(this);
     this.calendar = new CalendarModule(this);
 
+    // ── Forms ─────────────────────────────────────────────────────────
+    // Storefront-side intake / contact / lead-capture / signed forms.
+    // The dashboard owns the schema; storefronts read it via
+    // `dash.forms.get(slug)` and submit via `dash.forms.submit(slug, payload)`.
+    // The React `useDashForm` hook (`/react`) provides Django-template-style
+    // field accessors on top of these primitives.
+    this.forms = new FormsModule(this);
+
+    // ── Page Groups (storefront content collections) ───────────────────
+    // Public reads. Use either:
+    //   const { items } = await dash.pageGroup("services").all();
+    //   const list      = await dash.pageGroups.list();
+    // The `pageGroup(slug)` shortcut returns a fluent builder so you can
+    // chain `.all() / .get() / .filter() / .find() / .count()`.
+    this.pageGroups = new PageGroupsModule(this);
+    this.pageGroup = (slug) => this.pageGroups.group(slug);
+
     // Admin module — only available with secret keys (sk_*)
     if (apiKey.startsWith("sk_")) {
       this.admin = new AdminModule(this);
-      this.contentTypes = new ContentTypesModule(this);
     }
+    // Legacy alias — kept so existing apps keep working. New code should use
+    // `dash.pageGroup(slug)` or `dash.pageGroups`. ContentTypesModule will be
+    // removed in a future major version.
+    this.contentTypes = new ContentTypesModule(this);
 
     // Inject footer branding for all keys (production and test)
     if (typeof window !== "undefined") {
@@ -494,6 +516,9 @@ export { DiscountStoreModule } from "./services/discount-store.js";
 export { EarnPointsModule } from "./services/earn-points.js";
 export { SitemapModule } from "./services/sitemap.js";
 export { CalendarModule } from "./services/calendar.js";
+export { PageGroupsModule, PageGroup } from "./services/page-groups.js";
+export { FormsModule } from "./services/forms.js";
+export { ContentTypesModule } from "./services/content-types.js";
 
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";
