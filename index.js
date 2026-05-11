@@ -27,6 +27,7 @@ import { TaxModule } from "./services/tax.js";
 import { CoaModule } from "./services/coa.js";
 import { LegalModule } from "./services/legal.js";
 import { MediaModule } from "./services/media.js";
+import { HtmlTemplatesModule } from "./services/html-templates.js";
 import { ReferralsModule } from "./services/referrals.js";
 import { DiscountStoreModule } from "./services/discount-store.js";
 import { EarnPointsModule } from "./services/earn-points.js";
@@ -117,6 +118,7 @@ export class DashClient {
     this.coa = new CoaModule(this);
     this.legal = new LegalModule(this);
     this.media = new MediaModule(this);
+    this.htmlTemplates = new HtmlTemplatesModule(this);
     this.referrals = new ReferralsModule(this);
     this.discountStore = new DiscountStoreModule(this);
     this.earnPoints = new EarnPointsModule(this);

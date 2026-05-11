@@ -2131,6 +2131,26 @@ export declare class MediaModule {
   getByName(name: string): Promise<MediaByNameResponse>;
 }
 
+export interface HtmlTemplate {
+  id: string;
+  slug: string;
+  name: string;
+  html: string;
+}
+
+export declare class HtmlTemplatesModule {
+  constructor(client: DashClient);
+
+  /**
+   * Fetch an HTML template by id or slug. Inactive templates return 404.
+   *
+   * @example
+   * const { template } = await dash.htmlTemplates.get("htmltmpl__abc123");
+   * // template.html → raw HTML string
+   */
+  get(idOrSlug: string): Promise<{ template: HtmlTemplate }>;
+}
+
 export declare class EmailModule {
   constructor(client: DashClient);
 
@@ -2540,6 +2560,9 @@ export declare class DashClient {
 
   /** Media files API */
   readonly media: MediaModule;
+
+  /** Reusable HTML templates managed in dashfordevs Operations */
+  readonly htmlTemplates: HtmlTemplatesModule;
 
   /** Discount Store (loyalty point redemption) */
   readonly discountStore: DiscountStoreModule;
