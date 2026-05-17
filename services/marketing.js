@@ -65,6 +65,131 @@ export class MarketingModule {
   }
 
   /**
+   * Onsite queue handle (Klaviyo `window.klaviyo`). Present once the onsite
+   * snippet/loader is on the page (via init() or a hardcoded snippet).
+   * @private
+   */
+  _klaviyo() {
+    if (typeof window === "undefined") return null;
+    return window.klaviyo || null;
+  }
+
+  /**
+   * Associate the current anonymous browser with a known profile so onsite
+   * events (Viewed Product / Active on Site) attach to that profile and can
+   * power browse-abandonment flows. Safe to call repeatedly.
+   *
+   * @param {Object} profile - At minimum { email }. May include first_name,
+   *   last_name, phone.
+   */
+  identify(profile) {
+    const kl = this._klaviyo();
+    if (!kl || !profile || !profile.email) return;
+    try {
+      kl.push([
+        "identify",
+        {
+          $email: profile.email,
+          ...(profile.first_name ? { $first_name: profile.first_name } : {}),
+          ...(profile.last_name ? { $last_name: profile.last_name } : {}),
+          ...(profile.phone ? { $phone_number: profile.phone } : {}),
+        },
+      ]);
+    } catch (_) {}
+  }
+
+  /**
+   * Push a custom onsite event to Klaviyo (client-side, anonymous-safe).
+   * @param {string} event - Klaviyo metric name (e.g. "Viewed Product")
+   * @param {Object} [properties]
+   */
+  trackOnsite(event, properties = {}) {
+    const kl = this._klaviyo();
+    if (!kl || !event) return;
+    try {
+      kl.push(["track", event, properties]);
+    } catch (_) {}
+  }
+
+  /**
+   * Fire Klaviyo's product-page web tracking: the "Viewed Product" metric
+   * plus `trackViewedItem` (which powers "recently viewed" / browse
+   * abandonment). This is the onsite event Klaviyo's "set up product web
+   * tracking" checklist looks for. Anonymous-safe; no email required.
+   *
+   * Call once per product detail view. Requires the Klaviyo onsite snippet
+   * on the page (marketing.init() or a hardcoded loader).
+   *
+   * @param {Object} product
+   * @param {string} product.id        - Product ID (ProductID / ItemId)
+   * @param {string} product.name      - Product name (Title)
+   * @param {string} product.url       - Absolute product URL
+   * @param {string} [product.imageUrl]
+   * @param {number|string} [product.price]
+   * @param {number|string} [product.compareAtPrice]
+   * @param {string} [product.brand]
+   * @param {string[]} [product.categories]
+   * @param {string} [product.sku]
+   */
+  viewedProduct(product) {
+    const kl = this._klaviyo();
+    if (!kl || !product || !product.id || !product.name) return;
+
+    const price =
+      product.price !== undefined && product.price !== null
+        ? Number(product.price)
+        : undefined;
+    const compareAtPrice =
+      product.compareAtPrice !== undefined && product.compareAtPrice !== null
+        ? Number(product.compareAtPrice)
+        : undefined;
+    const categories = Array.isArray(product.categories)
+      ? product.categories
+      : product.categories
+        ? [product.categories]
+        : [];
+
+    try {
+      kl.push([
+        "track",
+        "Viewed Product",
+        {
+          ProductName: product.name,
+          ProductID: String(product.id),
+          ...(product.sku ? { SKU: product.sku } : {}),
+          Categories: categories,
+          ...(product.imageUrl ? { ImageURL: product.imageUrl } : {}),
+          URL: product.url,
+          ...(product.brand ? { Brand: product.brand } : {}),
+          ...(price !== undefined ? { Price: price } : {}),
+          ...(compareAtPrice !== undefined
+            ? { CompareAtPrice: compareAtPrice }
+            : {}),
+        },
+      ]);
+
+      // Feeds Klaviyo's catalog "recently viewed" / browse-abandonment.
+      kl.push([
+        "trackViewedItem",
+        {
+          Title: product.name,
+          ItemId: String(product.id),
+          Categories: categories,
+          ...(product.imageUrl ? { ImageUrl: product.imageUrl } : {}),
+          Url: product.url,
+          Metadata: {
+            ...(product.brand ? { Brand: product.brand } : {}),
+            ...(price !== undefined ? { Price: price } : {}),
+            ...(compareAtPrice !== undefined
+              ? { CompareAtPrice: compareAtPrice }
+              : {}),
+          },
+        },
+      ]);
+    } catch (_) {}
+  }
+
+  /**
    * Inject Klaviyo onsite JS script tag.
    * @private
    */

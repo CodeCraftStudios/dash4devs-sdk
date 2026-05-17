@@ -794,6 +794,32 @@ declare class MarketingModule {
    * Get the cached config (call init() first).
    */
   getConfig(): MarketingConfig | null;
+
+  /**
+   * Associate the anonymous browser with a known profile so onsite events
+   * attach to it (powers browse-abandonment targeting). Needs { email }.
+   */
+  identify(profile: { email: string; first_name?: string; last_name?: string; phone?: string }): void;
+
+  /** Push a custom onsite Klaviyo event (client-side, anonymous-safe). */
+  trackOnsite(event: string, properties?: Record<string, any>): void;
+
+  /**
+   * Fire Klaviyo product-page web tracking ("Viewed Product" + trackViewedItem).
+   * This is the onsite event Klaviyo's "set up product web tracking" wants;
+   * call once per product detail view. Anonymous-safe.
+   */
+  viewedProduct(product: {
+    id: string;
+    name: string;
+    url: string;
+    imageUrl?: string;
+    price?: number | string;
+    compareAtPrice?: number | string;
+    brand?: string;
+    categories?: string[];
+    sku?: string;
+  }): void;
 }
 
 declare class CartModule {
