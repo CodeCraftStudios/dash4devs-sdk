@@ -81,6 +81,29 @@ export class CheckoutModule {
   }
 
   /**
+   * Resume an abandoned checkout from a recovery token.
+   *
+   * Given a token of the form "checkout__<hash>" (emitted to Klaviyo on
+   * checkout start and used in abandoned-checkout recovery emails as
+   * /checkout?token=...), this validates the token server-side, logs the
+   * customer fully back in (returns normal access/refresh JWTs), and returns
+   * the cart so checkout can continue where it was left off.
+   *
+   * NOTE: prefer `dash.auth.loginWithCheckoutToken(token)` which calls this
+   * and applies the returned session to the auth module for you.
+   *
+   * @param {string} token - Recovery token, e.g. "checkout__abc123..."
+   * @returns {Promise<{access_token: string, refresh_token: string, token_type: string, expires_in: number, customer: Object, cart_id: string, cart_summary: Object}>}
+   */
+  async resume(token) {
+    if (!token) {
+      throw new Error("token is required");
+    }
+    const url = `${this.client.baseURL}/api/storefront/checkout/resume?token=${encodeURIComponent(token)}`;
+    return this.client._fetch(url, { method: "GET" });
+  }
+
+  /**
    * Complete checkout — creates order from cart.
    * If authenticated, no code needed. If guest, requires email + OTP code.
    *

@@ -1025,6 +1025,13 @@ declare class AuthModule {
   verifyOTP(email: string, code: string): Promise<AuthTokenResponse>;
 
   /**
+   * Log a customer in from an abandoned-checkout recovery token
+   * ("checkout__<hash>" from a Klaviyo recovery email /checkout?token=...).
+   * Applies the returned session; persist the returned cart_id to resume cart.
+   */
+  loginWithCheckoutToken(token: string): Promise<CheckoutResumeResponse>;
+
+  /**
    * Refresh access token
    */
   refresh(): Promise<AuthRefreshResponse>;
@@ -1559,6 +1566,21 @@ export interface CheckoutCompleteResponse {
   refresh_token: string;
 }
 
+export interface CheckoutResumeResponse {
+  message: string;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  customer: Customer;
+  cart_id: string;
+  cart_summary: {
+    item_count: number;
+    subtotal: string;
+    items: any[];
+  };
+}
+
 declare class CheckoutModule {
   /**
    * Start checkout — validates cart and sends OTP verification code to email.
@@ -1589,6 +1611,21 @@ declare class CheckoutModule {
    * });
    */
   complete(data: CheckoutCompleteData): Promise<CheckoutCompleteResponse>;
+
+  /**
+   * Resume an abandoned checkout from a recovery token.
+   *
+   * Token format: "checkout__<hash>" — emitted to Klaviyo on checkout start
+   * and used in abandoned-checkout emails as /checkout?token=...
+   * Logs the customer fully back in and returns the cart.
+   *
+   * Prefer `dash.auth.loginWithCheckoutToken(token)` which also applies the
+   * returned session to the auth module.
+   *
+   * @example
+   * const r = await dash.checkout.resume("checkout__abc123...");
+   */
+  resume(token: string): Promise<CheckoutResumeResponse>;
 }
 
 // =============================================================================

@@ -168,6 +168,31 @@ export class AuthModule {
   }
 
   /**
+   * Log a customer in from an abandoned-checkout recovery token.
+   *
+   * Resolves a "checkout__<hash>" token (from a Klaviyo recovery email link
+   * /checkout?token=...) into a full session: the customer is logged in
+   * exactly as if they had completed OTP/password login. The returned
+   * `cart_id` should be persisted so the cart resumes too.
+   *
+   * @param {string} token - Recovery token, e.g. "checkout__abc123..."
+   * @returns {Promise<{access_token: string, refresh_token: string, token_type: string, expires_in: number, customer: Object, cart_id: string, cart_summary: Object}>}
+   */
+  async loginWithCheckoutToken(token) {
+    if (!token) {
+      throw new Error("token is required");
+    }
+
+    const response = await this.client.checkout.resume(token);
+
+    this._customer = response.customer;
+    this._accessToken = response.access_token;
+    this._refreshToken = response.refresh_token;
+
+    return response;
+  }
+
+  /**
    * Set a password for the authenticated customer
    * @param {string} password - New password (min 8 characters)
    * @returns {Promise<{message: string, customer: Object}>}
