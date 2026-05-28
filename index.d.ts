@@ -104,13 +104,25 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
+  /** SEO-specific slug (may differ from `slug` for canonical URL management) */
+  seo_slug?: string | null;
   main_image: string | null;
-  category: { id: string; name: string; slug: string } | null;
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    /** Parent category, present when this is a subcategory */
+    parent?: { id: string; name: string; slug: string } | null;
+  } | null;
   price: string | null;
   discounted_price: string | null;
   in_stock: boolean;
   bundle_type?: BundleType;
   is_bundle?: boolean;
+  /** Average review rating (0-5) */
+  avg_rating?: number;
+  /** Total number of approved reviews */
+  reviews_count?: number;
 
   /**
    * Maximum bulk discount percentage available for this product.
@@ -203,6 +215,8 @@ export interface Category {
   name: string;
   slug: string;
   description: string;
+  /** Short description for card/list views */
+  short_description?: string;
   /** Category cover image (for listings/home page) */
   image: string | null;
   /** Hero banner image (for category page hero section) */
@@ -231,6 +245,8 @@ export interface Category {
     items: Product[];
     pagination: Pagination;
   };
+  /** FAQ items for this category (if configured) */
+  faqs?: Array<{ question: string; answer: string }>;
 }
 
 export interface Pagination {
@@ -241,15 +257,37 @@ export interface Pagination {
 }
 
 export interface CartItem {
+  id?: string;
   product_id: string;
   product_name: string;
+  product_slug?: string;
+  /** Whether the underlying product is currently active in the store */
+  product_active?: boolean;
   product_image: string | null;
+  /** Category slug of the product */
+  category_slug?: string | null;
   size_id: string;
   size_label: string;
   quantity: number;
   unit_price: string;
   total_price: string;
   cannabinoid_type: string;
+  /** Dynamic tax class slug (replaces cannabinoid_type) */
+  tax_class?: string;
+  /** Variation slug if this item belongs to a variation */
+  variation_slug?: string | null;
+  /** Variation name if this item belongs to a variation */
+  variation_name?: string | null;
+  /** Variation type descriptor */
+  variation_type?: string | null;
+  /** Whether this cart item is active (may be false if product was deactivated) */
+  is_active?: boolean;
+  /** Discounted price per unit (if a discount applies) */
+  discounted_price?: string | null;
+  /** Size image URL for this cart item */
+  size_image?: string | null;
+  /** Available stock for this size */
+  stock_available?: number | null;
 }
 
 // =============================================================================
@@ -276,6 +314,11 @@ export interface ProductsListOptions {
   search?: string;
   /** Filter by custom fields (e.g. {popular: true, homepage_section: "hero"}) */
   customFields?: Record<string, string | number | boolean>;
+  /**
+   * Comma-separated list of related resources to inline in each product object.
+   * Supported values depend on the backend version (e.g. "variations", "sizes").
+   */
+  expand?: string;
 }
 
 export interface ReviewMedia {
@@ -336,6 +379,8 @@ export interface SubmitReviewData {
   variation_slug?: string;
   /** Array of uploaded media URLs (optional) */
   media_urls?: string[];
+  /** Whether to submit anonymously (hides author name on display) */
+  is_anonymous?: boolean;
 }
 
 export interface AllReviewsResponse {
@@ -646,8 +691,10 @@ declare class ProductsModule {
 
   /**
    * Get a single product by slug (full data — use getCore for SSR)
+   * @param slug - Product slug
+   * @param options - Optional query params forwarded to the backend (e.g. { variation: "strain-a" })
    */
-  get(slug: string): Promise<ProductGetResponse>;
+  get(slug: string, options?: Record<string, string | number | boolean | undefined>): Promise<ProductGetResponse>;
 
   /**
    * Get lightweight core product data for SSR.
@@ -680,7 +727,14 @@ declare class ProductsModule {
   /**
    * Get all approved reviews across all products
    */
-  getAllReviews(options?: { limit?: number; offset?: number }): Promise<AllReviewsResponse>;
+  getAllReviews(options?: {
+    limit?: number;
+    offset?: number;
+    product?: string;
+    rating?: number | string;
+    sort?: "highest" | "lowest" | "newest" | "oldest" | string;
+    has_media?: boolean | string;
+  }): Promise<AllReviewsResponse>;
 
   /**
    * Get featured variations (variations with show_in_bg custom field)
@@ -901,9 +955,12 @@ declare class CartModule {
   }>;
 
   /**
-   * Add an upsell product to the cart at the discounted price
+   * Add an upsell product to the cart at the discounted price.
+   * @param upsellId - UpsellProduct ID
+   * @param sessionId - CheckoutUpsellSession ID
+   * @param sizeId - Optional size override for "All variations" mode upsells
    */
-  addUpsellToCart(upsellId: string, sessionId: string): Promise<{
+  addUpsellToCart(upsellId: string, sessionId: string, sizeId?: string | null): Promise<{
     cart_id: string; item: CartItem; message: string
   }>;
 
@@ -975,6 +1032,10 @@ declare class PagesModule {
 export interface CustomerAddress {
   line1: string;
   line2: string;
+  /** Street address (alias for line1 on some API responses) */
+  address?: string;
+  /** Second address line (alias for line2 on some API responses) */
+  address_line2?: string;
   city: string;
   state: string | null;
   state_name: string | null;
@@ -1025,11 +1086,20 @@ export interface CustomerProfileUpdate {
   zip_code?: string;
   country?: string;
   accepts_marketing?: boolean;
+  /** Arbitrary metadata key-value pairs merged into the customer record */
+  metadata?: Record<string, unknown>;
 }
 
 declare class AuthModule {
-  /** Current access token */
+  /** Current access token (public getter — same value as _accessToken) */
   readonly accessToken: string | null;
+
+  /**
+   * Internal access token field.
+   * The runtime exposes this as a public property; code that reads
+   * `dash.auth._accessToken` directly will find it here.
+   */
+  readonly _accessToken: string | null;
 
   /** Current customer (if authenticated) */
   readonly customer: Customer | null;
@@ -1041,14 +1111,20 @@ declare class AuthModule {
    * Request OTP code via email
    * @param email - Customer email address
    */
-  requestOTP(email: string, options?: { accepts_marketing?: boolean }): Promise<{ message: string; email: string }>;
+  requestOTP(email: string, options?: { accepts_marketing?: boolean; captcha_token?: string }): Promise<{ message: string; email: string }>;
 
   /**
-   * Verify OTP and get tokens
-   * @param email - Customer email address
-   * @param code - 6-digit OTP code
+   * Verify OTP and get tokens.
+   * Runtime signature: `verifyOTP({ email, code })` (object form).
+   * The positional `(email, code)` overload is also accepted for compat.
    */
   verifyOTP(email: string, code: string): Promise<AuthTokenResponse>;
+  verifyOTP(options: { email: string; code: string }): Promise<AuthTokenResponse>;
+
+  /**
+   * Login with email and password.
+   */
+  login(options: { email: string; password: string; captcha_token?: string }): Promise<AuthTokenResponse>;
 
   /**
    * Log a customer in from an abandoned-checkout recovery token
@@ -1058,13 +1134,14 @@ declare class AuthModule {
   loginWithCheckoutToken(token: string): Promise<CheckoutResumeResponse>;
 
   /**
-   * Refresh access token
+   * Refresh access token using the stored refresh token.
+   * Runtime method is `refreshAccessToken()`; alias `refresh()` is also present.
    */
   refresh(): Promise<AuthRefreshResponse>;
+  refreshAccessToken(): Promise<AuthRefreshResponse>;
 
   /**
    * Logout current customer
-   * @param allSessions - If true, revokes all sessions
    */
   logout(allSessions?: boolean): Promise<void>;
 
@@ -1077,6 +1154,11 @@ declare class AuthModule {
    * Update customer profile
    */
   updateProfile(data: CustomerProfileUpdate): Promise<{ customer: Customer }>;
+
+  /**
+   * Update customer metadata (key-value pairs, merged server-side).
+   */
+  updateMetadata(metadata: Record<string, unknown>): Promise<{ customer: Customer }>;
 
   /**
    * Get customer's order history
@@ -1094,6 +1176,13 @@ declare class AuthModule {
   checkBan(): Promise<{ banned: boolean; reason?: string }>;
 
   /**
+   * Set auth token (positional form used by legacy code).
+   * Prefer `setTokens(access, refresh)` for clarity.
+   * Passing null clears the stored token.
+   */
+  setToken(token: string | null, refreshToken?: string | null): void;
+
+  /**
    * Set tokens manually (e.g., from localStorage on page load)
    */
   setTokens(accessToken: string, refreshToken: string): void;
@@ -1102,6 +1191,26 @@ declare class AuthModule {
    * Clear stored tokens
    */
   clearTokens(): void;
+
+  /**
+   * Set a password for the authenticated customer (min 8 chars).
+   */
+  setPassword(password: string): Promise<{ message: string; customer: Customer }>;
+
+  /**
+   * Merge a guest cart into the authenticated customer's cart.
+   */
+  mergeCart(cartId: string): Promise<{ cart: CartGetResponse; cart_id?: string }>;
+
+  /**
+   * Request a password reset code sent to the customer's email.
+   */
+  requestPasswordReset(email: string): Promise<{ message: string }>;
+
+  /**
+   * Reset password using OTP code.
+   */
+  resetPassword(options: { email: string; code: string; password: string }): Promise<{ message: string }>;
 }
 
 export interface CustomerOrdersResponse {
@@ -1384,6 +1493,8 @@ export interface BlogPost {
   featured_image: string | null;
   featured_image_alt: string;
   author_name: string;
+  /** @deprecated Legacy alias — use `author_name` instead. May be present on older API responses. */
+  author?: string;
   category: {
     id: string;
     name: string;
@@ -1401,6 +1512,11 @@ export interface BlogPost {
   content?: string;
   allow_comments?: boolean;
   seo?: BlogPostSEO;
+
+  // Flat SEO fields — some API versions flatten these alongside the `seo` object
+  seo_title?: string | null;
+  seo_description?: string | null;
+  seo_keywords?: string | null;
 }
 
 export interface BlogPostSEO {
@@ -1430,6 +1546,8 @@ export interface BlogPostsListOptions {
 export interface BlogPostsListResponse {
   posts: BlogPost[];
   pagination: Pagination;
+  /** @deprecated Runtime returns `posts`, not `blogs`. This alias exists for legacy code. */
+  blogs?: BlogPost[];
 }
 
 export interface BlogPostGetOptions {
@@ -1439,6 +1557,8 @@ export interface BlogPostGetOptions {
 
 export interface BlogPostGetResponse {
   post: BlogPost;
+  /** @deprecated Runtime wraps single post in `post`, not `blog`. This alias exists for legacy code. */
+  blog?: BlogPost;
 }
 
 export interface BlogPostSeoResponse {
@@ -1483,6 +1603,12 @@ declare class BlogModule {
    * List active blog categories
    */
   listCategories(): Promise<BlogCategoriesListResponse>;
+
+  /**
+   * Legacy callable alias for `listCategories()`.
+   * Some legacy code calls `dash.blog.categories()` directly.
+   */
+  categories(): Promise<BlogCategoriesListResponse>;
 }
 
 // =============================================================================
@@ -1493,7 +1619,9 @@ export interface CheckoutStartData {
   /** Cart ID */
   cartId: string;
   /** Customer email address */
-  email: string;
+  email?: string;
+  /** Marketing consent flag — passed through to the customer record */
+  acceptsMarketing?: boolean;
 }
 
 export interface CheckoutStartResponse {
@@ -1507,11 +1635,29 @@ export interface CheckoutStartResponse {
     has_address: boolean;
     address: CustomerAddress | null;
   };
+  /** Preview of customer record — may be present on some API versions */
+  customer_preview?: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    has_address?: boolean;
+    address?: CustomerAddress | null;
+  };
   cart_summary: {
     item_count: number;
     subtotal: string;
     items: CartItem[];
   };
+  /**
+   * Per-product shipping restrictions (cannabis compliance).
+   * Keys are product IDs; values describe the product and its allowed states.
+   * Only products with state-level restrictions are present.
+   */
+  product_restrictions?: Record<string, {
+    name: string;
+    allowed_state_codes: string[];
+  }>;
 }
 
 export interface CheckoutShipping {
@@ -1583,6 +1729,32 @@ export interface CheckoutOrder {
   total: string;
   customer_notes: string;
   created_at: string;
+  /** Currency code (ISO 4217, e.g. "USD") — present on extended order objects */
+  currency?: string;
+  /** Discount amount applied to this order */
+  discount_amount?: string;
+  /** Discount code applied to this order */
+  discount_code?: string | null;
+  /** Number of distinct line items */
+  item_count?: number;
+  /** Tracking number for the shipment */
+  tracking_number?: string | null;
+  /** Carrier code (e.g. "ups", "fedex") */
+  carrier?: string | null;
+  /** Fully qualified tracking URL */
+  tracking_url?: string | null;
+  /** Whether a label has been printed */
+  label_printed?: boolean;
+  /** Refund amount if any */
+  refund_amount?: string | null;
+  /** Internal notes */
+  internal_notes?: string;
+  /** Affiliate discount code applied */
+  affiliate_code?: string | null;
+  /** Referral code applied */
+  referral_code?: string | null;
+  /** Full customer name (first + last) — convenience field on extended order objects */
+  customer_name?: string | null;
 }
 
 export interface CheckoutCompleteResponse {
@@ -1637,6 +1809,33 @@ declare class CheckoutModule {
    * });
    */
   complete(data: CheckoutCompleteData): Promise<CheckoutCompleteResponse>;
+
+  /**
+   * Get allowed shipping locations (countries and states).
+   * Returns only locations the organization ships to.
+   *
+   * @example
+   * const { countries } = await dash.checkout.getShippingLocations();
+   */
+  getShippingLocations(): Promise<{
+    countries: Array<{
+      id: string;
+      name: string;
+      code: string;
+      states: Array<{ id: string; name: string; code: string }>;
+    }>;
+  }>;
+
+  /**
+   * Get the list of globally banned state names for the organization.
+   * Useful for footer disclaimers.
+   *
+   * @example
+   * const { banned_states } = await dash.checkout.getBannedStateNames();
+   */
+  getBannedStateNames(): Promise<{
+    banned_states: Array<{ code: string; name: string }>;
+  }>;
 
   /**
    * Resume an abandoned checkout from a recovery token.
@@ -2038,6 +2237,8 @@ export interface CoaProduct {
   slug: string;
   image: string | null;
   variation_count: number;
+  /** Inline variations — present when COA list is fetched with variation detail */
+  variations?: CoaVariation[];
 }
 
 export interface CoaListResponse {
@@ -2051,6 +2252,8 @@ export interface CoaVariation {
   slug: string;
   image: string | null;
   lab_report_url: string | null;
+  /** Array of lab report objects with name and URL (matches backend response) */
+  lab_report_urls?: { name: string; url: string }[] | null;
 }
 
 export interface CoaProductResponse {
@@ -2071,6 +2274,12 @@ export interface CoaDetailResponse {
     name: string;
     slug: string;
     selectable_variations?: { slug: string }[] | null;
+    category?: {
+      id: string;
+      name: string;
+      slug: string;
+      parent?: { id: string; name: string; slug: string } | null;
+    } | null;
   };
   variation: {
     id: string;
@@ -2078,6 +2287,8 @@ export interface CoaDetailResponse {
     slug: string;
     image: string | null;
     lab_report_url: string | null;
+    /** Array of lab report objects with name and URL (matches backend response) */
+    lab_report_urls?: { name: string; url: string }[] | null;
   };
 }
 
@@ -2085,7 +2296,7 @@ export declare class CoaModule {
   constructor(client: DashClient);
 
   /** List products that have at least one variation with a lab-report file */
-  list(options?: { q?: string }): Promise<CoaListResponse>;
+  list(options?: { q?: string; includeVariations?: boolean }): Promise<CoaListResponse>;
 
   /** Get a product and its variations that have COA files */
   getProduct(productSlug: string): Promise<CoaProductResponse>;
@@ -2558,6 +2769,264 @@ export declare class ContentTypesModule {
 }
 
 // =============================================================================
+// TRACKING MODULE
+// =============================================================================
+
+export declare class TrackingModule {
+  constructor(client: DashClient);
+
+  /**
+   * Initialize tracking by fetching org config.
+   * Call once on page load: `await dash.tracking.init()`
+   */
+  init(): Promise<{ active: boolean }>;
+
+  /**
+   * Capture a custom event.
+   */
+  capture(eventName: string, properties?: Record<string, any>): void;
+
+  /**
+   * Identify a user for tracking.
+   */
+  identify(userId: string, properties?: Record<string, any>): void;
+
+  /**
+   * Reset the current user identity (e.g. on logout).
+   */
+  reset(): void;
+
+  /**
+   * Set the authenticated customer ID for backend visit linking.
+   */
+  setCustomer(customerId: string | null): void;
+
+  /**
+   * Clear the stored customer ID (e.g. on logout).
+   */
+  clearCustomer(): void;
+
+  /**
+   * Enable automatic pageview tracking for SPA route changes.
+   */
+  enableAutoPageviews(): void;
+
+  /**
+   * Notify tracking of a route change (for Next.js / SPA routers).
+   */
+  notifyRouteChange(pathname?: string): void;
+
+  /**
+   * Set properties on the current user without identifying them.
+   */
+  setUserProperties(properties: Record<string, any>): void;
+
+  /**
+   * Track a pageview.
+   */
+  pageview(path?: string): void;
+
+  /**
+   * Track a storefront visit with UTM parameters.
+   */
+  trackVisit(options?: { customer_id?: string; session_id?: string }): Promise<{ success: boolean }>;
+
+  optIn(): void;
+  optOut(): void;
+
+  isFeatureEnabled(flagKey: string): boolean | string | undefined;
+
+  /**
+   * Show or hide the debug overlay.
+   */
+  debug(show?: boolean): void;
+
+  // ThoughtMetric helpers
+  tmEvent(eventName: string, properties?: Record<string, any>): void;
+  tmIdentify(customerId: string, properties?: Record<string, any>): void;
+  tmPurchase(order: {
+    transaction_id: string;
+    total_price: number;
+    currency?: string;
+    subtotal_price?: number;
+    total_tax?: number;
+    total_shipping?: number;
+    total_discounts?: number;
+    discount_codes?: string[];
+    items?: any[];
+  }): void;
+
+  // Meta Pixel helpers
+  fbqEvent(eventName: string, params?: Record<string, any>, options?: Record<string, any>): void;
+  fbqCustom(eventName: string, params?: Record<string, any>, options?: Record<string, any>): void;
+  fbqPageView(): void;
+  fbqViewContent(params?: Record<string, any>): void;
+  fbqAddToCart(params?: Record<string, any>): void;
+  fbqAddToWishlist(params?: Record<string, any>): void;
+  fbqInitiateCheckout(params?: Record<string, any>): void;
+  fbqAddPaymentInfo(params?: Record<string, any>): void;
+  fbqPurchase(params?: Record<string, any>): void;
+  fbqSearch(params?: Record<string, any>): void;
+  fbqLead(params?: Record<string, any>): void;
+  fbqContact(params?: Record<string, any>): void;
+  fbqCompleteRegistration(params?: Record<string, any>): void;
+  fbqSubscribe(params?: Record<string, any>): void;
+}
+
+// =============================================================================
+// AFFILIATES MODULE
+// =============================================================================
+
+export declare class AffiliatesModule {
+  constructor(client: DashClient);
+
+  /**
+   * Get the affiliate application form configuration.
+   */
+  getFormConfig(): Promise<{
+    is_active: boolean;
+    custom_fields: any[];
+    welcome_message: string;
+  }>;
+
+  /**
+   * Submit an affiliate application.
+   */
+  apply(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    paypal_email?: string;
+    custom_fields?: Record<string, any>;
+    source_url?: string;
+    turnstile_token?: string;
+  }): Promise<{ success: boolean; message: string; request_id: string }>;
+
+  /**
+   * Get current customer's affiliate status. Requires authentication.
+   */
+  getMyStatus(): Promise<{
+    is_affiliate: boolean;
+    has_pending_request: boolean;
+    request_status: string | null;
+    rejection_reason: string | null;
+  }>;
+
+  /**
+   * Get affiliate dashboard data. Requires authentication + approved status.
+   */
+  getMyDashboard(): Promise<{
+    tier_name: string;
+    commission_rate: number;
+    total_orders: number;
+    total_revenue: string;
+    total_earned: string;
+    paypal_email: string;
+    discount_codes: any[];
+  }>;
+
+  /**
+   * Create a discount code as an affiliate.
+   */
+  createCode(data: { code: string }): Promise<{
+    success: boolean;
+    message: string;
+    discount_code: Record<string, any>;
+  }>;
+
+  /**
+   * Update affiliate profile (e.g., PayPal email).
+   */
+  updateProfile(data: { paypal_email?: string }): Promise<{
+    success: boolean;
+    paypal_email: string;
+  }>;
+
+  /**
+   * Deactivate one of the affiliate's own discount codes (one-way).
+   */
+  deactivateCode(codeId: string): Promise<{ success: boolean; message: string }>;
+
+  /**
+   * List the current affiliate's product requests.
+   */
+  listProductRequests(params?: { page?: number }): Promise<{
+    requests: any[];
+    pagination: Pagination;
+  }>;
+
+  /**
+   * Submit a new product request.
+   */
+  createProductRequest(data: {
+    full_name: string;
+    email: string;
+    shipping_address: string;
+    platform: string;
+    platform_other?: string;
+    profile_link?: string;
+    follower_count: string;
+    kit_type: string;
+    kit_other_description?: string;
+    content_plan: string;
+    expected_sales: string;
+    content_links?: string;
+    additional_notes?: string;
+  }): Promise<{ success: boolean; message: string; request_id: string }>;
+
+  /**
+   * Get a single product request by ID.
+   */
+  getProductRequest(requestId: string): Promise<{ request: Record<string, any> }>;
+
+  /**
+   * Update a pending product request.
+   */
+  updateProductRequest(requestId: string, data: Record<string, any>): Promise<{
+    success: boolean;
+    message: string;
+  }>;
+}
+
+// =============================================================================
+// REFERRALS MODULE
+// =============================================================================
+
+export declare class ReferralsModule {
+  constructor(client: DashClient);
+
+  /**
+   * Validate a referral secret and get/create a discount code.
+   */
+  validate(data: {
+    secret: string;
+    subtotal: string | number;
+  }): Promise<{
+    valid: boolean;
+    referrer_first_name: string;
+    code: string;
+    is_percentage: boolean;
+    rate: string;
+    discount_amount: string;
+    meetsMinimum: boolean;
+    /** Error code if validation failed (e.g. "min_subtotal") */
+    error?: string;
+  }>;
+
+  /**
+   * Get referral dashboard data for the authenticated customer.
+   */
+  dashboard(): Promise<{
+    referral_secret: string;
+    referral_link: string;
+    total_referrals: number;
+    total_points_earned: number;
+    points_balance: number;
+    recent_referrals: any[];
+  }>;
+}
+
+// =============================================================================
 // MAIN CLIENT
 // =============================================================================
 
@@ -2608,6 +3077,46 @@ export declare class DashClient {
 
   /** Shipping rate lookup, comparison, and tracking */
   readonly shipping: ShippingModule;
+
+  /** Analytics tracking (PostHog, ThoughtMetric, Meta Pixel, visit tracking) */
+  readonly tracking: TrackingModule;
+
+  /** Affiliate program — application, dashboard, codes (storefront-facing) */
+  readonly affiliates: AffiliatesModule;
+
+  /** Referral program — validate referral secrets, dashboard */
+  readonly referrals: ReferralsModule;
+
+  /** File upload utility (contact form attachments, review media) */
+  readonly upload: {
+    /** Check if a file extension is allowed for upload */
+    isAllowed(filename: string): boolean;
+    /**
+     * Upload a file to the storefront media endpoint.
+     * Returns the CDN URL of the uploaded file.
+     * @param file - The file to upload
+     * @param options - Optional upload options
+     * @param options.onProgress - Progress callback receiving upload percentage (0–100)
+     */
+    file(file: File, options?: { onProgress?: (percent: number) => void }): Promise<{ url: string; name: string }>;
+  };
+
+  /** Contact form submission */
+  readonly contact: {
+    submit(data: {
+      name: string;
+      email: string;
+      content: string;
+      phone?: string;
+      subject?: string;
+      files?: string[];
+      source_url?: string;
+      session_id?: string;
+      cookies?: Record<string, string>;
+      metadata?: Record<string, any>;
+      turnstile_token?: string;
+    }): Promise<{ success: boolean; message: string; submission_id: string }>;
+  };
 
   /** Tax calculation API */
   readonly tax: TaxModule;
