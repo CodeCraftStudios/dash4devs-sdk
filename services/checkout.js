@@ -147,6 +147,43 @@ export class CheckoutModule {
       body: JSON.stringify(body),
     });
   }
+
+  /**
+   * Place a wholesale order request — NO payment, NO OTP.
+   *
+   * Separate from the B2C checkout flow: creates a "confirmed / unpaid" order
+   * for staff to review and invoice (e.g. via QuickBooks). The customer is
+   * created-or-fetched by email server-side.
+   *
+   * SECRET-KEY ONLY: because it skips identity verification, the backend
+   * rejects public keys. Call this from a server (with an sk_ key), never
+   * from the browser.
+   *
+   * @param {Object} data
+   * @param {string} data.cartId - Cart ID
+   * @param {string} data.email - Customer email
+   * @param {Object} data.shipping - Shipping address (first_name, last_name,
+   *   phone, address, address_line2, city, state, zip_code, country)
+   * @param {string} [data.customerNotes] - Optional order notes
+   * @returns {Promise<{order: Object, customer: Object}>}
+   */
+  async placeWholesaleRequest(data) {
+    const { cartId, email, shipping, customerNotes } = data;
+    if (!cartId || !email || !shipping) {
+      throw new Error("cartId, email and shipping are required");
+    }
+
+    const url = `${this.client.baseURL}/api/storefront/wholesale/place-request`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({
+        cart_id: cartId,
+        email,
+        shipping,
+        customer_notes: customerNotes || "",
+      }),
+    });
+  }
 }
 
 export default CheckoutModule;

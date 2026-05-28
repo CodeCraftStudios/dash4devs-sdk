@@ -1764,6 +1764,22 @@ export interface CheckoutCompleteResponse {
   refresh_token: string;
 }
 
+export interface WholesaleRequestData {
+  /** Cart ID */
+  cartId: string;
+  /** Customer email — used to create-or-fetch the customer record */
+  email: string;
+  /** Shipping address */
+  shipping: CheckoutShipping;
+  /** Optional order notes */
+  customerNotes?: string;
+}
+
+export interface WholesaleRequestResponse {
+  order: CheckoutOrder;
+  customer: Customer;
+}
+
 export interface CheckoutResumeResponse {
   message: string;
   access_token: string;
@@ -1851,6 +1867,27 @@ declare class CheckoutModule {
    * const r = await dash.checkout.resume("checkout__abc123...");
    */
   resume(token: string): Promise<CheckoutResumeResponse>;
+
+  /**
+   * Place a wholesale order request — NO payment, NO OTP.
+   *
+   * Separate from the B2C `start`/`complete` flow. Creates a
+   * "confirmed / unpaid" order for staff to review and invoice (e.g. via
+   * QuickBooks). The customer is created-or-fetched by email server-side.
+   *
+   * SECRET-KEY ONLY: the backend rejects public keys for this endpoint, so
+   * call it from a server (sk_ key), never from the browser.
+   *
+   * @example
+   * const { order } = await dash.checkout.placeWholesaleRequest({
+   *   cartId: "cart_xxx",
+   *   email: "buyer@clinic.com",
+   *   shipping: { first_name: "John", last_name: "Doe",
+   *     address: "123 Main St", city: "Miami", state: "FL", zip_code: "33101" },
+   *   customerNotes: "Company: Acme Clinic",
+   * });
+   */
+  placeWholesaleRequest(data: WholesaleRequestData): Promise<WholesaleRequestResponse>;
 }
 
 // =============================================================================
