@@ -25,7 +25,75 @@ export class TrackingModule {
     this._customerId = null;
     this._autoPageviewsEnabled = false;
     this._lastTrackedPath = null;
+
+    // Custom tracking actions (in-house, HIPAA-friendly analytics that
+    // doubles as a workflow trigger). Definitions are per-org — a name
+    // registered against org A is invisible to org B.
+    //
+    // Usage:
+    //   await dash.tracking.actions.create("product.view", {
+    //     include: { product: "Product" },
+    //     description: "Fires when a product detail page is viewed",
+    //   });
+    //   await dash.tracking.actions.emit("product.view", { product: {...} });
+    //
+    // emit() records the event AND fires any workflows bound to this name.
+    this._actionDefCache = new Map();
+    this.actions = {
+      /**
+       * Idempotent. Registers (or updates) a custom tracking definition.
+       * Safe to call on every page load — the backend get-or-creates.
+       *
+       * @param {string} name e.g. "product.view"
+       * @param {{ include?: object, description?: string }} [options]
+       * @returns {Promise<{ tracking: object, created: boolean }>}
+       */
+      create: async (name, options = {}) => {
+        if (!name || typeof name !== "string") {
+          throw new Error("tracking.actions.create: name (string) is required");
+        }
+        const url = `${this.client.baseURL}/api/storefront/analytics/tracking/actions/create`;
+        const res = await this.client._fetch(url, {
+          method: "POST",
+          body: JSON.stringify({
+            name,
+            include: options.include ?? null,
+            description: options.description ?? "",
+          }),
+        });
+        this._actionDefCache.set(name, res?.tracking ?? null);
+        return res;
+      },
+
+      /**
+       * Emit a single event. Records it in the events table AND fires the
+       * automation trigger named `name` for this org's active workflows.
+       *
+       * @param {string} name
+       * @param {object} [data]
+       * @param {{ customer_id?: string, user_id?: string, session_id?: string, contains_phi?: boolean }} [meta]
+       * @returns {Promise<{ recorded: boolean, trigger_fired: boolean }>}
+       */
+      emit: async (name, data = {}, meta = {}) => {
+        if (!name || typeof name !== "string") {
+          throw new Error("tracking.actions.emit: name (string) is required");
+        }
+        const url = `${this.client.baseURL}/api/storefront/analytics/tracking/events`;
+        return this.client._fetch(url, {
+          method: "POST",
+          body: JSON.stringify({
+            name,
+            data: data || {},
+            customer_id: meta.customer_id || this._customerId || "",
+            user_id: meta.user_id || "",
+            session_id: meta.session_id || "",
+            contains_phi: !!meta.contains_phi,
+          }),
+        });
+      },
+    };
   }
+
 
   /**
    * Initialize tracking by fetching your org's config.
