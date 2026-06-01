@@ -17,6 +17,7 @@
  */
 
 import { AuthorizeNetCSR } from "../processors/authorize-net.js";
+import { QuickBooksCSR } from "../processors/quickbooks.js";
 
 export class PaymentModule {
   constructor(client) {
@@ -356,15 +357,36 @@ export class PaymentModule {
    * Create the CSR handler for a given processor.
    * @private
    */
+  /**
+   * Whether the active processor uses invoice-based payments (e.g., QuickBooks).
+   * When true, checkout should skip tokenization — no card form needed.
+   * @returns {boolean}
+   */
+  get isInvoiceBased() {
+    return this._processor?.payment_type === "invoice";
+  }
+
+  /**
+   * Whether the invoice-based processor is connected (has OAuth tokens).
+   * Only relevant for processors like QuickBooks that require OAuth.
+   * @returns {boolean}
+   */
+  get isProcessorConnected() {
+    return this._processor?.connected ?? true;
+  }
+
   _createHandler(slug, config) {
     switch (slug) {
       case "authorize-net":
         return new AuthorizeNetCSR(config);
 
+      case "quickbooks":
+        return new QuickBooksCSR(config);
+
       default:
         throw new Error(
           `Unsupported payment processor: ${slug}. ` +
-          `Supported: authorize-net.`
+          `Supported: authorize-net, quickbooks.`
         );
     }
   }
