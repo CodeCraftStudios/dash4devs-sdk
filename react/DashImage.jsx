@@ -1,39 +1,42 @@
 /**
- * <DashImage /> — responsive image with blur-up placeholder.
+ * <DashImage /> — responsive image with LQIP blur-up + progressive loading.
  *
  * Pass any image object returned by the Dash4Devs API. The component renders
- * a <picture> with AVIF/WebP sources and a srcset across the pre-generated
- * widths (320 / 640 / 1024 / 1920). The LQIP base64 thumbnail is painted as
- * a blurred background until the real image loads, eliminating layout shift.
+ * a raw <img> with srcset across pre-generated WebP widths (320/640/1024/1920)
+ * served directly from the CDN — no /_next/image proxy, no on-demand re-encode.
+ *
+ * The LQIP base64 thumbnail is painted as a blurred CSS background behind the
+ * image. Once the real pixels load, the blur clears. If no LQIP is available,
+ * an animated shimmer placeholder is shown instead.
  *
  * Usage:
- *   <DashImage image={product.main_image} alt={product.name} />
+ *   <DashImage image={product.main_image_data} alt={product.name} />
  *   <DashImage image={img} sizes="(max-width: 768px) 100vw, 50vw" priority />
  *
- * Required `image` shape (matches MediaFile.to_dict()):
+ * Required `image` shape (matches get_image_object()):
  *   {
  *     url: string,
- *     lqip?: string,                          // data: URI, optional
+ *     lqip?: string | null,           // base64 data URI
  *     variants_ready?: boolean,
  *     variants?: {
- *       webp: [{ width, url }],
- *       avif: [{ width, url }],
+ *       webp?: [{ width, url }],
+ *       avif?: [{ width, url }],
  *     },
  *   }
- *
- * Falls back gracefully:
- *   - No variants? Renders a plain <img src={image.url}>
- *   - No LQIP?    Skips the blur background.
  */
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-const DEFAULT_SIZES = "100vw";
+// Animated shimmer SVG — shown when no LQIP is available.
+const SHIMMER_SVG = `data:image/svg+xml;base64,${typeof window === "undefined"
+  ? Buffer.from(`<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#222"><animate attributeName="offset" values="-2;1" dur="1.4s" repeatCount="indefinite"/></stop><stop offset="50%" stop-color="#2a2a2a"><animate attributeName="offset" values="-1;2" dur="1.4s" repeatCount="indefinite"/></stop><stop offset="100%" stop-color="#222"><animate attributeName="offset" values="0;3" dur="1.4s" repeatCount="indefinite"/></stop></linearGradient></defs><rect width="400" height="400" fill="url(#g)"/></svg>`).toString("base64")
+  : btoa(`<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#222"><animate attributeName="offset" values="-2;1" dur="1.4s" repeatCount="indefinite"/></stop><stop offset="50%" stop-color="#2a2a2a"><animate attributeName="offset" values="-1;2" dur="1.4s" repeatCount="indefinite"/></stop><stop offset="100%" stop-color="#222"><animate attributeName="offset" values="0;3" dur="1.4s" repeatCount="indefinite"/></stop></linearGradient></defs><rect width="400" height="400" fill="url(#g)"/></svg>`)}`;
 
 function buildSrcSet(variantList) {
-  if (!Array.isArray(variantList) || variantList.length === 0) return "";
+  if (!Array.isArray(variantList) || variantList.length === 0) return undefined;
   return variantList
     .filter((v) => v && v.url && v.width)
+    .sort((a, b) => a.width - b.width)
     .map((v) => `${v.url} ${v.width}w`)
     .join(", ");
 }
@@ -41,76 +44,83 @@ function buildSrcSet(variantList) {
 export function DashImage({
   image,
   alt = "",
-  sizes = DEFAULT_SIZES,
+  sizes = "100vw",
   className = "",
   style = {},
   priority = false,
-  blurDisabled = false,
+  noBlur = false,
+  fill = false,
   onLoad,
   onError,
   ...imgProps
 }) {
-  // Error state flips the <picture> to bare-img-with-original-url mode.
-  // Any variant 404 / decode failure falls back to image.url so users see
-  // *something* even when the pipeline's output is stale or unreachable.
+  const [loaded, setLoaded] = useState(false);
   const [variantError, setVariantError] = useState(false);
+  const imgRef = useRef(null);
+
+  // Detect already-cached images on hydrate
+  useEffect(() => {
+    if (imgRef.current?.complete) setLoaded(true);
+  }, []);
 
   if (!image || !image.url) return null;
 
   const variants = !variantError && image.variants_ready ? image.variants : null;
-  const avifSet = variants ? buildSrcSet(variants.avif) : "";
-  const webpSet = variants ? buildSrcSet(variants.webp) : "";
+  const webpSet = variants ? buildSrcSet(variants.webp) : undefined;
 
-  // When variants are available we use the largest WebP as the <img> src
-  // (also what Safari<14 / picture-unaware browsers will load). On error
-  // we rebuild with the original source URL — always guaranteed to exist
-  // because that's what the CMS stored.
-  const src = variants
-    ? (variants.webp?.[variants.webp.length - 1]?.url || image.url)
+  // Primary src: mid-size variant (never the heavy original) when available
+  const sorted = (variants?.webp || [])
+    .filter((v) => v && v.url && v.width)
+    .sort((a, b) => a.width - b.width);
+  const primarySrc = sorted.length
+    ? (sorted.find((v) => v.width >= 1024) || sorted[sorted.length - 1]).url
     : image.url;
 
   const handleError = (e) => {
     if (!variantError) setVariantError(true);
+    setLoaded(true);
     onError?.(e);
   };
 
-  // Don't force `display` — callers pass Tailwind responsive visibility
-  // classes like "hidden md:block" via className; an inline display value
-  // would override them. No base64 LQIP is painted on the wrapper: inlining
-  // a ~400-byte data URI per image bloats HTML heavily on list pages, and
-  // the <img> paints fast enough from CDN+cache that the blur was net-negative.
-  const wrapperStyle = {
-    position: "relative",
-    overflow: "hidden",
+  const handleLoad = (e) => {
+    setLoaded(true);
+    onLoad?.(e);
+  };
+
+  // LQIP blur-up: real LQIP if available, shimmer fallback for variant images, nothing otherwise
+  const blur = !loaded && !noBlur
+    ? (image.lqip || (sorted.length ? SHIMMER_SVG : null))
+    : null;
+
+  const mergedStyle = {
+    ...(blur
+      ? { backgroundImage: `url("${blur}")`, backgroundSize: "cover", backgroundPosition: "center" }
+      : {}),
+    ...(fill
+      ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
+      : {}),
     ...style,
   };
 
-  const imgStyle = {
-    display: "block",
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-  };
-
-  return (
-    <span style={wrapperStyle} className={className}>
-      <picture style={{ display: "block", width: "100%", height: "100%" }}>
-        {avifSet && <source type="image/avif" srcSet={avifSet} sizes={sizes} />}
-        {webpSet && <source type="image/webp" srcSet={webpSet} sizes={sizes} />}
-        <img
-          src={src}
-          alt={alt}
-          loading={priority ? "eager" : "lazy"}
-          decoding={priority ? "sync" : "async"}
-          fetchPriority={priority ? "high" : undefined}
-          onLoad={onLoad}
-          onError={handleError}
-          style={imgStyle}
-          {...imgProps}
-        />
-      </picture>
-    </span>
+  const img = (
+    <img
+      ref={imgRef}
+      src={primarySrc}
+      srcSet={webpSet}
+      sizes={sizes}
+      alt={alt}
+      loading={priority ? "eager" : "lazy"}
+      decoding="async"
+      fetchPriority={priority ? "high" : undefined}
+      onLoad={handleLoad}
+      onError={handleError}
+      className={className}
+      style={mergedStyle}
+      {...imgProps}
+    />
   );
+
+  return img;
 }
 
 export default DashImage;

@@ -121,7 +121,8 @@ export interface DashImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageEl
   className?: string;
   style?: React.CSSProperties;
   priority?: boolean;
-  blurDisabled?: boolean;
+  noBlur?: boolean;
+  fill?: boolean;
 }
 
 export function DashImage(props: DashImageProps): JSX.Element | null;
