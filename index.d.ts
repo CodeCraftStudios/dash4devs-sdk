@@ -1773,6 +1773,13 @@ export interface WholesaleRequestData {
   shipping: CheckoutShipping;
   /** Optional order notes */
   customerNotes?: string;
+  /** Optional totals overrides (shipping, tax, surcharge) */
+  totals?: {
+    shipping_cost?: number;
+    tax_amount?: number;
+    surcharge?: number;
+    surcharge_rate?: string;
+  };
 }
 
 export interface WholesaleRequestResponse {
