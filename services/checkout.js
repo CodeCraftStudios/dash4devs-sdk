@@ -168,20 +168,22 @@ export class CheckoutModule {
    * @returns {Promise<{order: Object, customer: Object}>}
    */
   async placeWholesaleRequest(data) {
-    const { cartId, email, shipping, customerNotes } = data;
+    const { cartId, email, shipping, customerNotes, totals } = data;
     if (!cartId || !email || !shipping) {
       throw new Error("cartId, email and shipping are required");
     }
 
     const url = `${this.client.baseURL}/api/storefront/wholesale/place-request`;
+    const body = {
+      cart_id: cartId,
+      email,
+      shipping,
+      customer_notes: customerNotes || "",
+    };
+    if (totals) body.totals = totals;
     return this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({
-        cart_id: cartId,
-        email,
-        shipping,
-        customer_notes: customerNotes || "",
-      }),
+      body: JSON.stringify(body),
     });
   }
 }
