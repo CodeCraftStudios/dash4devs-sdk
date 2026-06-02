@@ -300,6 +300,15 @@ export class TrackingModule {
   }
 
   /**
+   * Get the current PostHog session ID (if tracking is initialized).
+   * Use this to attach session recordings to orders.
+   * @returns {string} Session ID or empty string
+   */
+  getSessionId() {
+    return this._engine?.get_session_id?.() || "";
+  }
+
+  /**
    * Track a storefront visit with UTM parameters.
    * Automatically reads utm_source, utm_medium, utm_campaign, utm_term,
    * utm_content from the current URL query string and sends them to the API.
