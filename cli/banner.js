@@ -7,8 +7,13 @@ import chalk from "chalk";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ART = fs.readFileSync(path.join(__dirname, "banner.txt"), "utf8");
 
-export function printInitBanner() {
+/** Just the ASCII art (used by every command's header). */
+export function printArt() {
   console.log(chalk.cyan(ART));
+}
+
+export function printInitBanner() {
+  printArt();
   console.log(
     chalk.dim("  Scaffold a headless storefront powered by ") +
       chalk.bold.cyan("DashForDevs") +

@@ -20,13 +20,13 @@ import { scanBuild } from "../scanner.js";
 import { uploadAll } from "../uploader.js";
 import { processVideos } from "../video.js";
 import {
-  printBanner,
   step,
   success,
   warn,
   printSummary,
   formatBytes,
 } from "../ui.js";
+import { printArt } from "../banner.js";
 import chalk from "chalk";
 import ora from "ora";
 
@@ -39,7 +39,7 @@ export async function run(args) {
   const noVideo = args.includes("--no-video");
   const noImages = args.includes("--no-images");
 
-  printBanner();
+  printArt();
 
   const cfg = loadConfig();
   const api = createApi(cfg);

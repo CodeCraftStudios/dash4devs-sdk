@@ -40,19 +40,22 @@ export function loadConfig() {
   const fromLocal = parseEnvFile(path.join(cwd, ".env.local"));
   const merged = { ...fromEnv, ...fromLocal, ...process.env };
 
-  const apiKey = merged.DASH4DEVS_API_KEY;
+  // Prefer the storefront's own secret-key var (DEVDASH_SECRET_KEY, as written
+  // by `dash4devs init` and used by lib/dash.ts). DASH4DEVS_API_KEY is kept as
+  // a legacy fallback.
+  const apiKey = merged.DEVDASH_SECRET_KEY || merged.DASH4DEVS_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "DASH4DEVS_API_KEY not set. Get one from your organization's API settings and add it to .env.local"
+      "No secret key found. Add DEVDASH_SECRET_KEY=sk_... to .env.local (from your DashForDevs org's API settings)."
     );
   }
   if (!apiKey.startsWith("sk_")) {
-    throw new Error("DASH4DEVS_API_KEY must be a secret key (starts with sk_). Public pk_ keys cannot deploy.");
+    throw new Error("Secret key must start with sk_. Public pk_ keys cannot build/deploy.");
   }
 
   return {
     apiKey,
-    apiUrl: (merged.DASH4DEVS_API_URL || DEFAULT_API).replace(/\/$/, ""),
+    apiUrl: (merged.NEXT_PUBLIC_DEVDASH_API_URL || merged.DASH4DEVS_API_URL || DEFAULT_API).replace(/\/$/, ""),
     cwd,
     buildDir: merged.DASH4DEVS_BUILD_DIR || ".next",
     publicDir: merged.DASH4DEVS_PUBLIC_DIR || "public",
