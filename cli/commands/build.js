@@ -18,6 +18,7 @@ import { loadConfig } from "../config.js";
 import { createApi } from "../api.js";
 import { scanBuild } from "../scanner.js";
 import { uploadAll } from "../uploader.js";
+import { processOrgVideos } from "../video.js";
 import {
   step,
   success,
@@ -36,7 +37,8 @@ export async function run(args) {
   const dryRun = args.includes("--dry-run");
   const noActivate = args.includes("--no-activate");
   const noMedia = args.includes("--no-media") || args.includes("--no-images");
-  const noWait = args.includes("--no-wait");
+  const noVideo = args.includes("--no-video");
+  const forceVideo = args.includes("--force-video");
 
   printArt();
 
@@ -106,14 +108,13 @@ export async function run(args) {
   // Persist asset prefix so next.config.mjs can pick it up via env.
   writeAssetPrefix(cfg.cwd, activated.asset_prefix);
 
-  // Media optimization — server-side (Celery): webp/LQIP image variants for
-  // every org image + ffmpeg transcodes (640/720/1080p + poster) for every
-  // org video. We trigger it, then stream live progress so you can watch the
-  // renditions appear (640p → 720p → 1080p).
+  // Media optimization. Images: webp/LQIP variants generated server-side (light
+  // + cached). Videos: transcoded LOCALLY on this machine (ffmpeg) and uploaded
+  // to the CDN — heavy work stays off our servers so concurrent builds scale.
   if (!noMedia) {
-    step("Optimizing media", "webp variants + video transcodes (on the CDN)");
+    step("Optimizing media", "image variants (server) + video transcodes (local → CDN)");
     let res = null;
-    const trigger = ora({ text: "Scanning library + queuing jobs…", indent: 4 }).start();
+    const trigger = ora({ text: "Scanning library…", indent: 4 }).start();
     try {
       res = await api.generateImageVariants();
       trigger.stop();
@@ -126,10 +127,11 @@ export async function run(args) {
       const videos = res.videos || [];
       if (videos.length === 0) {
         success("No videos to transcode");
-      } else if (noWait) {
-        warn(`${videos.length} video(s) queued — transcoding in the background (--no-wait)`);
+      } else if (noVideo) {
+        warn(`${videos.length} video(s) skipped (--no-video)`);
       } else {
-        await trackVideos(api, videos);
+        // Heavy ffmpeg runs locally on this machine, then uploads to the CDN.
+        await processOrgVideos(api, videos, { force: forceVideo });
       }
     }
   }
@@ -194,63 +196,5 @@ function writeAssetPrefix(cwd, prefix) {
       const cleaned = localLines.filter((l) => !l.startsWith("NEXT_PUBLIC_ASSET_PREFIX="));
       fs.writeFileSync(localPath, cleaned.join("\n"));
     }
-  }
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-// Poll the server-side transcode status and stream friendly progress: a spinner
-// shows the in-flight video + the renditions produced so far (640p → 720p →
-// 1080p), and each video prints a ✓ line with its renditions when it finishes.
-async function trackVideos(api, videos) {
-  const keys = videos.map((v) => v.key);
-  const nameByKey = Object.fromEntries(videos.map((v) => [v.key, v.name]));
-  const label = (h) => `${h}p`;
-  const done = new Set();
-  const spin = ora({ text: `Transcoding ${videos.length} video(s)…`, indent: 4 }).start();
-  const TIMEOUT_MS = 10 * 60 * 1000;
-  const start = Date.now();
-  let everSawProgress = false;
-
-  while (done.size < videos.length && Date.now() - start < TIMEOUT_MS) {
-    let status;
-    try {
-      status = await api.mediaVariantStatus(keys);
-    } catch {
-      await sleep(3000);
-      continue;
-    }
-
-    for (const v of status.videos || []) {
-      const name = nameByKey[v.key] || v.key;
-      if (v.heights && v.heights.length) everSawProgress = true;
-      if ((v.ready || v.error) && !done.has(v.key)) {
-        done.add(v.key);
-        spin.stop();
-        if (v.error) warn(`${name} — ${v.error}`);
-        else success(`${name} → ${(v.heights || []).map(label).join(", ")}`);
-        spin.start();
-      }
-    }
-
-    const inflight = (status.videos || []).find((v) => !done.has(v.key));
-    if (inflight) {
-      const nm = nameByKey[inflight.key] || inflight.key;
-      const hs = (inflight.heights || []).map(label).join(", ");
-      spin.text = `Transcoding ${nm}${hs ? " → " + hs : "…"}   (${done.size}/${videos.length} done)`;
-    }
-    if (done.size < videos.length) await sleep(3000);
-  }
-
-  spin.stop();
-  if (done.size >= videos.length) {
-    success(`All ${videos.length} video(s) transcoded`);
-  } else {
-    warn(
-      `${videos.length - done.size} video(s) still transcoding — they'll finish in the background.` +
-        (!everSawProgress ? " (No progress yet — is ffmpeg installed on the worker?)" : "")
-    );
   }
 }
