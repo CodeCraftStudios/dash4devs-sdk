@@ -94,13 +94,18 @@ export async function run(args) {
     validate: (v) => (/^https?:\/\//.test(v) ? null : "Must start with http(s)://"),
   });
   const apiUrl = await ask("DevDash API URL", { def: DEFAULT_API });
-  const publicKey = await ask("Public key (pk_*)", {
-    validate: (v) => (v.startsWith("pk_") ? null : "Public key must start with pk_"),
+  // Keys are OPTIONAL — you may not have them yet. Leave blank and add them to
+  // .env.local later. Only validate the format when a value is actually entered.
+  const publicKey = await ask("Public key (pk_*) — optional, Enter to skip", {
+    validate: (v) => (!v || v.startsWith("pk_") ? null : "Must start with pk_ (or leave blank to add later)"),
   });
-  const secretKey = await askSecret("Secret key (sk_*)", {
-    validate: (v) => (v.startsWith("sk_") ? null : "Secret key must start with sk_"),
+  const secretKey = await askSecret("Secret key (sk_*) — optional, Enter to skip", {
+    validate: (v) => (!v || v.startsWith("sk_") ? null : "Must start with sk_ (or leave blank to add later)"),
   });
-  const wantSeed = await confirm("Generate demo categories + products?", { def: true });
+  // Seeding needs a secret key — only offer it when one was provided.
+  const wantSeed = secretKey
+    ? await confirm("Generate demo categories + products?", { def: true })
+    : false;
 
   // Scaffold
   console.log();
@@ -124,6 +129,13 @@ export async function run(args) {
     } catch (e) {
       s.fail(`Seeding failed: ${e.message}`);
     }
+  }
+
+  if (!publicKey || !secretKey) {
+    console.log("\n" + chalk.yellow("  ⚠ No API keys set yet.") +
+      chalk.dim(" Add them to .env.local when ready:"));
+    if (!publicKey) console.log(chalk.dim("      NEXT_PUBLIC_DEVDASH_PUBLIC_KEY=pk_..."));
+    if (!secretKey) console.log(chalk.dim("      DEVDASH_SECRET_KEY=sk_..."));
   }
 
   console.log("\n" + chalk.green.bold("  Done!") + chalk.dim(" Next steps:"));
