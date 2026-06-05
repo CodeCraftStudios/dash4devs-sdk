@@ -90,7 +90,7 @@ export class DashClient {
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
     this._sessionId = null;
-    this.version = "0.1.3-alpha";
+    this.version = "0.1.4-alpha";
 
     // Startup info table — prints once per process, not per DashClient instance
     // (Next.js SSR creates a new client per request/worker, which used to spam logs)

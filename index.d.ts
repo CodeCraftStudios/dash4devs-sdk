@@ -47,6 +47,13 @@ export interface ProductSize {
   points: number;
   /** Bulk discount tiers for this size */
   bulk_discounts?: BulkDiscount[];
+  /**
+   * Whether a per-customer custom price is active for this size.
+   * Only present (and true) when the request was made with a customer JWT
+   * and the backend has a custom price configured for that customer.
+   * Absent on anonymous/guest responses.
+   */
+  has_custom_price?: boolean;
 }
 
 /**
