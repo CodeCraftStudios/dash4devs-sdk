@@ -3,6 +3,7 @@
  * dash4devs CLI entry.
  *
  * Subcommands:
+ *   dash4devs init [dir]      Scaffold a new Next.js storefront wired to the SDK
  *   dash4devs build           Build Next.js app and upload static assets to CDN
  *   dash4devs deploy          Alias for build + activate
  *   dash4devs status          Show current active deployment
@@ -11,14 +12,16 @@
  *
  * Auth:
  *   Reads DASH4DEVS_API_KEY from env (falls back to .env.local / .env).
- *   Must be a secret key (sk_live_* or sk_test_*).
+ *   Must be a secret key (sk_live_* or sk_test_*). `init` prompts for keys.
  */
 
 import { run as runBuild } from "./commands/build.js";
 import { run as runStatus } from "./commands/status.js";
+import { run as runInit } from "./commands/init.js";
 import { printBanner, printError } from "./ui.js";
 
 const COMMANDS = {
+  init: runInit,
   build: runBuild,
   deploy: runBuild, // alias, activates by default
   status: runStatus,
@@ -33,6 +36,7 @@ async function main() {
 Usage: dash4devs <command> [options]
 
 Commands:
+  init [dir]            Scaffold a new storefront (prompts for keys)
   build                 Build Next.js and upload static assets
   deploy                Build + activate in one step
   status                Show active deployment for this org

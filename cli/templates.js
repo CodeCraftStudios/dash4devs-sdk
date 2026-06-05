@@ -1,0 +1,772 @@
+/**
+ * File templates for `dash4devs init`.
+ *
+ * `buildFiles(ctx)` returns [{ path, content }] for a complete, compiling
+ * Next.js (App Router) + Tailwind v4 storefront wired to the dash4devs SDK.
+ * ctx = { name, url, apiUrl, publicKey, secretKey }
+ */
+
+export function buildFiles(ctx) {
+  const { name, url, apiUrl, publicKey, secretKey } = ctx;
+  const safeName = name.replace(/"/g, '\\"');
+  const pkgName = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "storefront";
+
+  const files = [];
+  const add = (path, content) => files.push({ path, content });
+
+  // ─── Root config ──────────────────────────────────────────────────────────
+  add("package.json", JSON.stringify({
+    name: pkgName,
+    version: "0.1.0",
+    private: true,
+    scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+    dependencies: {
+      "dash4devs": "github:CodeCraftStudios/dash4devs-sdk",
+      "next": "^15.0.0",
+      "react": "^18.3.1",
+      "react-dom": "^18.3.1",
+      "lucide-react": "^0.456.0",
+      "@radix-ui/react-dialog": "^1.1.2",
+      "@radix-ui/react-dropdown-menu": "^2.1.2",
+      "@radix-ui/react-slot": "^1.1.0",
+      "clsx": "^2.1.1",
+      "tailwind-merge": "^2.5.4",
+    },
+    devDependencies: {
+      "@tailwindcss/postcss": "^4.0.0",
+      "tailwindcss": "^4.0.0",
+      "typescript": "^5.6.3",
+      "@types/node": "^22.9.0",
+      "@types/react": "^18.3.12",
+      "@types/react-dom": "^18.3.1",
+    },
+  }, null, 2) + "\n");
+
+  add(".env.local", [
+    `# ${safeName} — DashForDevs storefront`,
+    `NEXT_PUBLIC_SITE_NAME="${safeName}"`,
+    `NEXT_PUBLIC_SITE_URL=${url}`,
+    `NEXT_PUBLIC_DEVDASH_API_URL=${apiUrl}`,
+    `NEXT_PUBLIC_DEVDASH_PUBLIC_KEY=${publicKey}`,
+    `# Server-only secret key — never exposed to the browser.`,
+    `DEVDASH_SECRET_KEY=${secretKey}`,
+    "",
+  ].join("\n"));
+
+  add(".gitignore", ["node_modules", ".next", ".env*.local", "*.tsbuildinfo", "next-env.d.ts", ""].join("\n"));
+
+  add("next.config.mjs", `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },
+};
+export default nextConfig;
+`);
+
+  add("postcss.config.mjs", `export default { plugins: { "@tailwindcss/postcss": {} } };\n`);
+
+  add("tsconfig.json", JSON.stringify({
+    compilerOptions: {
+      target: "ES2020", lib: ["dom", "dom.iterable", "esnext"], allowJs: true,
+      skipLibCheck: true, strict: true, noEmit: true, esModuleInterop: true,
+      module: "esnext", moduleResolution: "bundler", resolveJsonModule: true,
+      isolatedModules: true, jsx: "preserve", incremental: true,
+      plugins: [{ name: "next" }], paths: { "@/*": ["./*"] },
+    },
+    include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+    exclude: ["node_modules"],
+  }, null, 2) + "\n");
+
+  // ─── lib ──────────────────────────────────────────────────────────────────
+  add("lib/dash.ts", `import { DashClient } from "dash4devs";
+
+// Server uses the secret key (bypasses Origin checks); browser uses the public key.
+const isServer = typeof window === "undefined";
+const apiKey = isServer
+  ? (process.env.DEVDASH_SECRET_KEY || process.env.NEXT_PUBLIC_DEVDASH_PUBLIC_KEY || "")
+  : (process.env.NEXT_PUBLIC_DEVDASH_PUBLIC_KEY || "");
+
+export const dash = new DashClient({
+  apiKey,
+  baseURL: process.env.NEXT_PUBLIC_DEVDASH_API_URL || "https://api.dashfordevs.com",
+});
+
+export default dash;
+`);
+
+  add("lib/utils.ts", `import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function money(v: string | number | null | undefined) {
+  return \`$\${parseFloat(String(v ?? 0)).toFixed(2)}\`;
+}
+`);
+
+  add("lib/consts.ts", `export const NAME = process.env.NEXT_PUBLIC_SITE_NAME || "${safeName}";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "${url}";
+`);
+
+  // ─── Styles ─────────────────────────────────────────────────────────────--
+  add("app/globals.css", `@import "tailwindcss";
+
+:root { --background: #ffffff; --foreground: #0a0a0a; --accent: #6d28d9; }
+
+html, body { background: var(--background); color: var(--foreground); }
+body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+`);
+
+  // ─── Root layout ────────────────────────────────────────────────────────--
+  add("app/layout.tsx", `import type { Metadata } from "next";
+import "./globals.css";
+import { Providers } from "@/components/Providers";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { NAME } from "@/lib/consts";
+
+export const metadata: Metadata = {
+  title: { default: NAME, template: \`%s | \${NAME}\` },
+  description: \`\${NAME} — online store\`,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen flex flex-col">
+        <Providers>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </Providers>
+      </body>
+    </html>
+  );
+}
+`);
+
+  // ─── Providers + contexts ─────────────────────────────────────────────────
+  add("components/Providers.tsx", `"use client";
+import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/context/CartContext";
+import { CartSidebar } from "@/components/CartSidebar";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <CartProvider>
+        {children}
+        <CartSidebar />
+      </CartProvider>
+    </AuthProvider>
+  );
+}
+`);
+
+  add("context/AuthContext.tsx", `"use client";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import dash from "@/lib/dash";
+
+interface Customer { id: string; email: string; first_name?: string; last_name?: string; }
+interface AuthCtx {
+  customer: Customer | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const Ctx = createContext<AuthCtx | undefined>(undefined);
+const TOKEN = "devdash_access_token";
+const REFRESH = "devdash_refresh_token";
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = localStorage.getItem(TOKEN);
+    if (!t) { setLoading(false); return; }
+    dash.auth.setToken(t, localStorage.getItem(REFRESH));
+    dash.auth.getProfile()
+      .then((r: any) => setCustomer(r.customer))
+      .catch(() => { localStorage.removeItem(TOKEN); localStorage.removeItem(REFRESH); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const r: any = await dash.auth.login({ email, password });
+    localStorage.setItem(TOKEN, r.access_token);
+    if (r.refresh_token) localStorage.setItem(REFRESH, r.refresh_token);
+    setCustomer(r.customer);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try { await dash.auth.logout(); } catch {}
+    localStorage.removeItem(TOKEN); localStorage.removeItem(REFRESH);
+    setCustomer(null);
+  }, []);
+
+  return <Ctx.Provider value={{ customer, loading, login, logout }}>{children}</Ctx.Provider>;
+}
+
+export function useAuth() {
+  const c = useContext(Ctx);
+  if (!c) throw new Error("useAuth must be used within AuthProvider");
+  return c;
+}
+`);
+
+  add("context/CartContext.tsx", `"use client";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import dash from "@/lib/dash";
+
+interface CartCtx {
+  cart: any | null;
+  count: number;
+  open: boolean;
+  setOpen: (o: boolean) => void;
+  add: (productId: string, sizeId: string, qty?: number) => Promise<void>;
+  remove: (sizeId: string) => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+const Ctx = createContext<CartCtx | undefined>(undefined);
+
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [cart, setCart] = useState<any | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try { const r: any = await dash.cart.get(); setCart(r.cart ?? r); } catch {}
+  }, []);
+
+  useEffect(() => { dash.cart.init?.().then(refresh).catch(() => refresh()); }, [refresh]);
+
+  const add = useCallback(async (productId: string, sizeId: string, qty = 1) => {
+    await dash.cart.add({ productId, sizeId, quantity: qty });
+    await refresh();
+    setOpen(true);
+  }, [refresh]);
+
+  const remove = useCallback(async (sizeId: string) => {
+    await dash.cart.remove(sizeId);
+    await refresh();
+  }, [refresh]);
+
+  const count = (cart?.items || []).reduce((n: number, i: any) => n + (i.quantity || 0), 0);
+
+  return <Ctx.Provider value={{ cart, count, open, setOpen, add, remove, refresh }}>{children}</Ctx.Provider>;
+}
+
+export function useCart() {
+  const c = useContext(Ctx);
+  if (!c) throw new Error("useCart must be used within CartProvider");
+  return c;
+}
+`);
+
+  // ─── DashImage (CdnImage) ─────────────────────────────────────────────────
+  add("components/ui/DashImage.tsx", `"use client";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+
+type Variant = { width: number; url: string };
+
+// Serves images straight from the DO CDN with a responsive webp srcset (when
+// pre-generated variants are supplied) + a blur-up placeholder — no /_next proxy.
+export default function DashImage({
+  src, alt = "", fill, width, height, sizes, className, style, variants, lqip,
+}: {
+  src?: string | null; alt?: string; fill?: boolean; width?: number; height?: number;
+  sizes?: string; className?: string; style?: CSSProperties;
+  variants?: Variant[] | null; lqip?: string | null;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  useEffect(() => { if (ref.current?.complete) setLoaded(true); }, []);
+  if (!src) return null;
+
+  const sorted = (variants ?? []).filter((v) => v?.url && v?.width).sort((a, b) => a.width - b.width);
+  const srcSet = sorted.length ? sorted.map((v) => \`\${v.url} \${v.width}w\`).join(", ") : undefined;
+  const primary = sorted.length ? (sorted.find((v) => v.width >= 1024) ?? sorted[sorted.length - 1]).url : src;
+  const blur = !loaded ? lqip : null;
+  const merged: CSSProperties = {
+    ...(blur ? { backgroundImage: \`url("\${blur}")\`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+    ...(fill ? { position: "absolute", inset: 0, width: "100%", height: "100%" } : {}),
+    ...style,
+  };
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img ref={ref} src={primary} srcSet={srcSet} sizes={sizes} alt={alt}
+      width={fill ? undefined : width} height={fill ? undefined : height}
+      loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={() => setLoaded(true)}
+      className={className} style={merged} />
+  );
+}
+`);
+
+  add("components/ProductCard.tsx", `import Link from "next/link";
+import DashImage from "@/components/ui/DashImage";
+import { money } from "@/lib/utils";
+
+export function ProductCard({ product }: { product: any }) {
+  const img = product.main_image_data?.url || product.main_image || product.display_image;
+  const variants = product.main_image_data?.variants?.webp ?? null;
+  const lqip = product.main_image_data?.lqip ?? null;
+  const cat = product.category?.slug || "all";
+  const price = product.price_range?.min ?? product.price;
+  return (
+    <Link href={\`/products/\${cat}/\${product.slug}\`} className="group block">
+      <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
+        <DashImage src={img} alt={product.name} fill variants={variants} lqip={lqip}
+          sizes="(min-width:768px) 25vw, 50vw"
+          className="object-cover transition-transform duration-300 group-hover:scale-105" />
+      </div>
+      <h3 className="mt-2 text-sm font-medium line-clamp-1">{product.name}</h3>
+      {price != null && <p className="text-sm text-gray-500">{money(price)}</p>}
+    </Link>
+  );
+}
+`);
+
+  // ─── Navbar / Footer / CartSidebar ────────────────────────────────────────
+  add("components/Navbar.tsx", `"use client";
+import Link from "next/link";
+import { ShoppingBag, User } from "lucide-react";
+import { useCart } from "@/context/CartContext";
+import { NAME } from "@/lib/consts";
+
+export function Navbar() {
+  const { count, setOpen } = useCart();
+  return (
+    <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+        <Link href="/" className="text-lg font-bold">{NAME}</Link>
+        <div className="flex items-center gap-5 text-sm">
+          <Link href="/products" className="hover:text-[var(--accent)]">Shop</Link>
+          <Link href="/about" className="hidden sm:block hover:text-[var(--accent)]">About</Link>
+          <Link href="/contact" className="hidden sm:block hover:text-[var(--accent)]">Contact</Link>
+          <Link href="/auth/account" aria-label="Account"><User className="h-5 w-5" /></Link>
+          <button onClick={() => setOpen(true)} aria-label="Cart" className="relative">
+            <ShoppingBag className="h-5 w-5" />
+            {count > 0 && <span className="absolute -right-2 -top-2 rounded-full bg-[var(--accent)] px-1.5 text-xs text-white">{count}</span>}
+          </button>
+        </div>
+      </nav>
+    </header>
+  );
+}
+`);
+
+  add("components/Footer.tsx", `import Link from "next/link";
+import { NAME } from "@/lib/consts";
+
+export function Footer() {
+  return (
+    <footer className="border-t mt-16">
+      <div className="mx-auto max-w-7xl px-4 py-10 text-sm text-gray-500 flex flex-col sm:flex-row justify-between gap-4">
+        <p>&copy; {new Date().getFullYear()} {NAME}</p>
+        <div className="flex gap-4">
+          <Link href="/reviews">Reviews</Link>
+          <Link href="/legal">Legal</Link>
+          <Link href="/contact">Contact</Link>
+        </div>
+      </div>
+    </footer>
+  );
+}
+`);
+
+  add("components/CartSidebar.tsx", `"use client";
+import Link from "next/link";
+import { X } from "lucide-react";
+import { useCart } from "@/context/CartContext";
+import { money } from "@/lib/utils";
+
+export function CartSidebar() {
+  const { cart, open, setOpen, remove } = useCart();
+  const items = cart?.items || [];
+  return (
+    <div className={\`fixed inset-0 z-50 \${open ? "" : "pointer-events-none"}\`}>
+      <div onClick={() => setOpen(false)}
+        className={\`absolute inset-0 bg-black/40 transition-opacity \${open ? "opacity-100" : "opacity-0"}\`} />
+      <aside className={\`absolute right-0 top-0 h-full w-full max-w-sm bg-white shadow-xl transition-transform \${open ? "translate-x-0" : "translate-x-full"}\`}>
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="font-semibold">Your Cart</h2>
+          <button onClick={() => setOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 overflow-auto p-4 space-y-4">
+          {items.length === 0 && <p className="text-sm text-gray-500">Your cart is empty.</p>}
+          {items.map((it: any) => (
+            <div key={it.size_id || it.id} className="flex justify-between gap-3 text-sm">
+              <div>
+                <p className="font-medium">{it.product_name}</p>
+                <p className="text-gray-500">{it.size_label} &middot; Qty {it.quantity}</p>
+              </div>
+              <div className="text-right">
+                <p>{money(it.unit_price)}</p>
+                <button onClick={() => remove(it.size_id)} className="text-xs text-red-500">Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t p-4">
+          <div className="mb-3 flex justify-between font-semibold">
+            <span>Subtotal</span><span>{money(cart?.subtotal)}</span>
+          </div>
+          <Link href="/checkout" onClick={() => setOpen(false)}
+            className="block rounded-lg bg-[var(--accent)] py-3 text-center font-medium text-white">
+            Checkout
+          </Link>
+        </div>
+      </aside>
+    </div>
+  );
+}
+`);
+
+  // ─── Pages ────────────────────────────────────────────────────────────────
+  add("app/page.tsx", `import Link from "next/link";
+import dash from "@/lib/dash";
+import { ProductCard } from "@/components/ProductCard";
+import { NAME } from "@/lib/consts";
+
+export default async function HomePage() {
+  let products: any[] = [];
+  try { const r: any = await dash.products.list({ limit: 8, expand: true }); products = r.products || []; } catch {}
+  return (
+    <div>
+      <section className="mx-auto max-w-7xl px-4 py-20 text-center">
+        <h1 className="text-4xl font-bold sm:text-6xl">{NAME}</h1>
+        <p className="mt-4 text-gray-500">Quality products, shipped fast.</p>
+        <Link href="/products" className="mt-8 inline-block rounded-full bg-[var(--accent)] px-6 py-3 font-medium text-white">Shop Now</Link>
+      </section>
+      <section className="mx-auto max-w-7xl px-4 pb-16">
+        <h2 className="mb-6 text-2xl font-bold">Featured</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {products.map((p) => <ProductCard key={p.id} product={p} />)}
+        </div>
+      </section>
+    </div>
+  );
+}
+`);
+
+  add("app/about/page.tsx", `import { NAME } from "@/lib/consts";
+export const metadata = { title: "About" };
+export default function AboutPage() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16 prose">
+      <h1 className="text-3xl font-bold">About {NAME}</h1>
+      <p className="mt-4 text-gray-600">Tell your story here. Edit <code>app/about/page.tsx</code>.</p>
+    </div>
+  );
+}
+`);
+
+  add("app/products/page.tsx", `import dash from "@/lib/dash";
+import { ProductCard } from "@/components/ProductCard";
+export const metadata = { title: "Shop" };
+export default async function ProductsPage() {
+  let products: any[] = [];
+  try { const r: any = await dash.products.list({ limit: 48, expand: true }); products = r.products || []; } catch {}
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-12">
+      <h1 className="mb-6 text-2xl font-bold">All Products</h1>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {products.map((p) => <ProductCard key={p.id} product={p} />)}
+        {products.length === 0 && <p className="text-gray-500">No products yet.</p>}
+      </div>
+    </div>
+  );
+}
+`);
+
+  add("app/products/[category]/page.tsx", `import dash from "@/lib/dash";
+import { ProductCard } from "@/components/ProductCard";
+
+export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
+  const { category } = await params;
+  let products: any[] = [];
+  try { const r: any = await dash.products.list({ category, limit: 48, expand: true }); products = r.products || []; } catch {}
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-12">
+      <h1 className="mb-6 text-2xl font-bold capitalize">{category.replace(/-/g, " ")}</h1>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {products.map((p) => <ProductCard key={p.id} product={p} />)}
+        {products.length === 0 && <p className="text-gray-500">No products in this category.</p>}
+      </div>
+    </div>
+  );
+}
+`);
+
+  add("app/products/[category]/[slug]/page.tsx", `import dash from "@/lib/dash";
+import { AddToCart } from "./AddToCart";
+import DashImage from "@/components/ui/DashImage";
+import { money } from "@/lib/utils";
+import { notFound } from "next/navigation";
+
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  let product: any = null;
+  try { const r: any = await dash.products.get(slug); product = r.product || r; } catch {}
+  if (!product) notFound();
+  const img = product.main_image_data?.url || product.main_image;
+  return (
+    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-2">
+      <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
+        <DashImage src={img} alt={product.name} fill
+          variants={product.main_image_data?.variants?.webp ?? null}
+          lqip={product.main_image_data?.lqip ?? null} sizes="(min-width:768px) 50vw, 100vw" className="object-cover" />
+      </div>
+      <div>
+        <h1 className="text-3xl font-bold">{product.name}</h1>
+        {product.price_range?.min != null && <p className="mt-2 text-xl">{money(product.price_range.min)}</p>}
+        {product.description && <div className="mt-4 text-gray-600" dangerouslySetInnerHTML={{ __html: product.description }} />}
+        <AddToCart slug={slug} productId={product.id} />
+      </div>
+    </div>
+  );
+}
+`);
+
+  add("app/products/[category]/[slug]/AddToCart.tsx", `"use client";
+import { useEffect, useState } from "react";
+import dash from "@/lib/dash";
+import { useCart } from "@/context/CartContext";
+
+export function AddToCart({ slug, productId }: { slug: string; productId: string }) {
+  const { add } = useCart();
+  const [options, setOptions] = useState<any>(null);
+  const [sizeId, setSizeId] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    dash.products.getOptions(slug).then((r: any) => {
+      setOptions(r.options);
+      const first = r.options?.sizes?.[0] || r.options?.variations?.[0]?.sizes?.[0];
+      if (first) setSizeId(first.id);
+    }).catch(() => {});
+  }, [slug]);
+
+  const sizes = options?.sizes || options?.variations?.flatMap((v: any) => v.sizes || []) || [];
+
+  return (
+    <div className="mt-6 space-y-3">
+      {sizes.length > 1 && (
+        <select value={sizeId} onChange={(e) => setSizeId(e.target.value)} className="w-full rounded-lg border p-2">
+          {sizes.map((s: any) => <option key={s.id} value={s.id}>{s.label} — \${s.price}</option>)}
+        </select>
+      )}
+      <button
+        disabled={!sizeId || busy}
+        onClick={async () => { setBusy(true); try { await add(productId, sizeId); } finally { setBusy(false); } }}
+        className="w-full rounded-lg bg-[var(--accent)] py-3 font-medium text-white disabled:opacity-50">
+        {busy ? "Adding…" : "Add to Cart"}
+      </button>
+    </div>
+  );
+}
+`);
+
+  add("app/cart/page.tsx", `"use client";
+import Link from "next/link";
+import { useCart } from "@/context/CartContext";
+import { money } from "@/lib/utils";
+
+export default function CartPage() {
+  const { cart, remove } = useCart();
+  const items = cart?.items || [];
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-12">
+      <h1 className="mb-6 text-2xl font-bold">Cart</h1>
+      {items.length === 0 ? <p className="text-gray-500">Your cart is empty.</p> : (
+        <div className="space-y-4">
+          {items.map((it: any) => (
+            <div key={it.size_id} className="flex justify-between border-b pb-3">
+              <div><p className="font-medium">{it.product_name}</p><p className="text-sm text-gray-500">{it.size_label} &middot; Qty {it.quantity}</p></div>
+              <div className="text-right"><p>{money(it.unit_price)}</p><button onClick={() => remove(it.size_id)} className="text-xs text-red-500">Remove</button></div>
+            </div>
+          ))}
+          <div className="flex justify-between pt-2 font-semibold"><span>Subtotal</span><span>{money(cart?.subtotal)}</span></div>
+          <Link href="/checkout" className="block rounded-lg bg-[var(--accent)] py-3 text-center font-medium text-white">Checkout</Link>
+        </div>
+      )}
+    </div>
+  );
+}
+`);
+
+  add("app/checkout/page.tsx", `"use client";
+import { useState } from "react";
+import { useCart } from "@/context/CartContext";
+import { money } from "@/lib/utils";
+
+// Minimal single-page checkout starter. Wire dash.checkout.start / .complete +
+// dash.payment + dash.shipping here for a full flow.
+export default function CheckoutPage() {
+  const { cart } = useCart();
+  const [email, setEmail] = useState("");
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-12">
+      <h1 className="mb-6 text-2xl font-bold">Checkout</h1>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+        className="mb-4 w-full rounded-lg border p-3" />
+      <div className="mb-4 flex justify-between font-semibold"><span>Total</span><span>{money(cart?.total ?? cart?.subtotal)}</span></div>
+      <button className="w-full rounded-lg bg-[var(--accent)] py-3 font-medium text-white">Place Order</button>
+      <p className="mt-3 text-xs text-gray-400">Starter checkout — connect dash.checkout / dash.payment to finish.</p>
+    </div>
+  );
+}
+`);
+
+  add("app/auth/login/page.tsx", `"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mx-auto max-w-sm px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">Sign in</h1>
+      <form onSubmit={async (e) => { e.preventDefault(); setBusy(true); setError("");
+        try { await login(email, password); router.push("/auth/account"); }
+        catch (err: any) { setError(err.message || "Login failed"); } finally { setBusy(false); } }}
+        className="space-y-3">
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full rounded-lg border p-3" />
+        <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full rounded-lg border p-3" />
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <button disabled={busy} className="w-full rounded-lg bg-[var(--accent)] py-3 font-medium text-white disabled:opacity-50">{busy ? "…" : "Sign in"}</button>
+      </form>
+    </div>
+  );
+}
+`);
+
+  add("app/auth/account/page.tsx", `"use client";
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+
+export default function AccountPage() {
+  const { customer, loading, logout } = useAuth();
+  if (loading) return <div className="mx-auto max-w-2xl px-4 py-16">Loading…</div>;
+  if (!customer) return (
+    <div className="mx-auto max-w-2xl px-4 py-16">
+      <p>Please <Link href="/auth/login" className="text-[var(--accent)] underline">sign in</Link>.</p>
+    </div>
+  );
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-16">
+      <h1 className="text-2xl font-bold">Hi, {customer.first_name || customer.email}</h1>
+      <div className="mt-6 flex gap-4">
+        <Link href="/auth/account/orders" className="rounded-lg border px-4 py-2">My Orders</Link>
+        <button onClick={logout} className="rounded-lg border px-4 py-2">Sign out</button>
+      </div>
+    </div>
+  );
+}
+`);
+
+  add("app/auth/account/orders/page.tsx", `"use client";
+import { useEffect, useState } from "react";
+import dash from "@/lib/dash";
+import { useAuth } from "@/context/AuthContext";
+import { money } from "@/lib/utils";
+
+export default function OrdersPage() {
+  const { customer, loading } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  useEffect(() => { if (customer) dash.auth.getOrders().then((r: any) => setOrders(r.orders || [])).catch(() => {}); }, [customer]);
+  if (loading) return <div className="mx-auto max-w-2xl px-4 py-16">Loading…</div>;
+  if (!customer) return <div className="mx-auto max-w-2xl px-4 py-16">Please sign in.</div>;
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">My Orders</h1>
+      {orders.length === 0 && <p className="text-gray-500">No orders yet.</p>}
+      {orders.map((o) => (
+        <div key={o.id} className="flex justify-between border-b py-3">
+          <span>#{o.order_number}</span><span className="capitalize">{o.status}</span><span>{money(o.total)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+`);
+
+  add("app/contact/page.tsx", `export const metadata = { title: "Contact" };
+export default function ContactPage() {
+  return (
+    <div className="mx-auto max-w-xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">Contact Us</h1>
+      <form className="space-y-3">
+        <input placeholder="Name" className="w-full rounded-lg border p-3" />
+        <input type="email" placeholder="Email" className="w-full rounded-lg border p-3" />
+        <textarea placeholder="Message" rows={5} className="w-full rounded-lg border p-3" />
+        <button className="rounded-lg bg-[var(--accent)] px-5 py-3 font-medium text-white">Send</button>
+      </form>
+    </div>
+  );
+}
+`);
+
+  add("app/reviews/page.tsx", `export const metadata = { title: "Reviews" };
+export default function ReviewsPage() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">Reviews</h1>
+      <p className="text-gray-500">Customer reviews will appear here. Wire dash.products.getReviews().</p>
+    </div>
+  );
+}
+`);
+
+  add("app/legal/page.tsx", `import Link from "next/link";
+export const metadata = { title: "Legal" };
+export default function LegalPage() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">Legal</h1>
+      <ul className="space-y-2 text-[var(--accent)] underline">
+        <li><Link href="/legal/terms">Terms of Service</Link></li>
+        <li><Link href="/legal/privacy">Privacy Policy</Link></li>
+        <li><Link href="/legal/shipping">Shipping Policy</Link></li>
+      </ul>
+    </div>
+  );
+}
+`);
+
+  add("app/legal/[slug]/page.tsx", `export default async function LegalDocPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold capitalize">{slug.replace(/-/g, " ")}</h1>
+      <p className="text-gray-500">Edit <code>app/legal/[slug]/page.tsx</code> or load from dash.legal.</p>
+    </div>
+  );
+}
+`);
+
+  add("README.md", `# ${safeName}
+
+Headless storefront scaffolded with **dash4devs init** (DashForDevs).
+
+## Develop
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+Keys live in \`.env.local\`. Pages are in \`app/\`, shared UI in \`components/\`,
+SDK client in \`lib/dash.ts\`. Images use \`components/ui/DashImage.tsx\` (webp + blur-up).
+`);
+
+  return files;
+}
