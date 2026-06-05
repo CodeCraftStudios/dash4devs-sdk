@@ -50,6 +50,8 @@ export function buildFiles(ctx) {
     `NEXT_PUBLIC_DEVDASH_PUBLIC_KEY=${publicKey}`,
     `# Server-only secret key — never exposed to the browser.`,
     `DEVDASH_SECRET_KEY=${secretKey}`,
+    `# Analytics, marketing (Klaviyo), welcome discount, free-shipping threshold,`,
+    `# etc. are all configured in DashForDevs and pulled at runtime — no extra env.`,
     "",
   ].join("\n"));
 
@@ -151,15 +153,194 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { CartSidebar } from "@/components/CartSidebar";
+import { SiteInit } from "@/components/SiteInit";
+import { JoinDiscount } from "@/components/JoinDiscount";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <CartProvider>
+        <SiteInit />
         {children}
         <CartSidebar />
+        <JoinDiscount />
       </CartProvider>
     </AuthProvider>
+  );
+}
+`);
+
+  // ─── SiteInit: trackers + RXC redirect + affiliate/referral capture ───────--
+  add("components/SiteInit.tsx", `"use client";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import dash from "@/lib/dash";
+
+// One-time, client-side initialization for the storefront. Everything (the
+// analytics provider, Klaviyo, etc.) is configured in DashForDevs and pulled
+// by the SDK — no per-tracker env vars here.
+//  - dash.tracking.init()  → your configured analytics provider + pageviews
+//  - dash.marketing.init() → Klaviyo onsite (when enabled in DashForDevs)
+//  - ?RXC=<base64 path> inbound redirect (drops RXC, keeps other params)
+//  - ?aflnk= / ?refrl= affiliate + referral capture into 30-day cookies
+function setCookie(name: string, value: string, days: number) {
+  const d = new Date(); d.setTime(d.getTime() + days * 864e5);
+  document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/";
+}
+
+export function SiteInit() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // RXC inbound redirect.
+    try {
+      const u = new URL(window.location.href);
+      const r = u.searchParams.get("RXC");
+      if (r) {
+        let path: string | null = null;
+        try {
+          let b = r.replace(/-/g, "+").replace(/_/g, "/");
+          while (b.length % 4) b += "=";
+          path = decodeURIComponent(escape(atob(b)));
+        } catch { path = null; }
+        u.searchParams.delete("RXC");
+        if (path && path.charAt(0) === "/" && path.charAt(1) !== "/") {
+          const merged = new URLSearchParams(path.includes("?") ? path.split("?")[1] : "");
+          u.searchParams.forEach((v, k) => { if (!merged.has(k)) merged.append(k, v); });
+          const base = path.split("?")[0];
+          const qs = merged.toString();
+          window.location.replace(base + (qs ? "?" + qs : ""));
+          return;
+        }
+      }
+    } catch {}
+
+    // Affiliate + referral capture (read at checkout).
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const aflnk = p.get("aflnk");
+      const refrl = p.get("refrl");
+      if (aflnk) setCookie("aflnk", aflnk, 30);
+      if (refrl) setCookie("refrl", refrl, 30);
+    } catch {}
+
+    // Trackers — config comes from DashForDevs.
+    try { dash.tracking.init?.(); } catch {}
+    try { dash.marketing.init?.(); } catch {}
+  }, []);
+
+  // Pageview on every route change.
+  useEffect(() => {
+    try { dash.tracking.notifyRouteChange?.(pathname); } catch {}
+  }, [pathname]);
+
+  return null;
+}
+`);
+
+  // ─── Store config (welcome discount, free-shipping threshold, …) ──────────--
+  add("hooks/useStoreConfig.ts", `"use client";
+import { useEffect, useState } from "react";
+import dash from "@/lib/dash";
+
+export interface StoreConfig {
+  initial_discount_amount: number;
+  min_for_free_shipping: number | null;
+  [key: string]: any;
+}
+
+const DEFAULT: StoreConfig = { initial_discount_amount: 10, min_for_free_shipping: null };
+
+// Pulls global store settings from DashForDevs (discount %, free-shipping
+// threshold, etc.). Configure these in the dashboard — not in code.
+export function useStoreConfig() {
+  const [config, setConfig] = useState<StoreConfig>(DEFAULT);
+  useEffect(() => {
+    dash.getGlobalData().then((data: any) => {
+      const g = data?.global || {};
+      setConfig({
+        ...g,
+        initial_discount_amount: g.initial_discount_amount != null ? parseFloat(g.initial_discount_amount) : DEFAULT.initial_discount_amount,
+        min_for_free_shipping: g.min_for_free_shipping != null ? parseFloat(g.min_for_free_shipping) : null,
+      });
+    }).catch(() => {});
+  }, []);
+  return config;
+}
+`);
+
+  // ─── Welcome discount modal (button trigger, no OTP) ─────────────────────--
+  add("components/JoinDiscount.tsx", `"use client";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { Tag } from "lucide-react";
+import { JoinDiscountModal } from "@/components/JoinDiscountModal";
+import { useAuth } from "@/context/AuthContext";
+import { useStoreConfig } from "@/hooks/useStoreConfig";
+
+const HIDE_ON = ["/checkout", "/auth/login"];
+
+export function JoinDiscount() {
+  const { customer } = useAuth();
+  const { initial_discount_amount } = useStoreConfig();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const discount = String(initial_discount_amount);
+  if (customer || HIDE_ON.some((p) => pathname.startsWith(p))) return null;
+  return (
+    <>
+      {!open && (
+        <button onClick={() => setOpen(true)} aria-label="Get a discount"
+          className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white shadow-lg hover:opacity-90">
+          <Tag className="h-4 w-4" /> Want {discount}% Off?
+        </button>
+      )}
+      <JoinDiscountModal active={open} close={() => setOpen(false)} discount={discount} />
+    </>
+  );
+}
+`);
+
+  add("components/JoinDiscountModal.tsx", `"use client";
+import { useState } from "react";
+import { X, Mail } from "lucide-react";
+import dash from "@/lib/dash";
+
+// No OTP — captures the email straight into the marketing provider (Klaviyo).
+export function JoinDiscountModal({ active, close, discount }: { active: boolean; close: () => void; discount: string }) {
+  const [email, setEmail] = useState("");
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!active) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+        <button onClick={close} aria-label="Close" className="absolute right-3 top-3 text-gray-400 hover:text-black"><X className="h-5 w-5" /></button>
+        {done ? (
+          <div className="text-center">
+            <h2 className="text-2xl font-bold">You&apos;re in!</h2>
+            <p className="mt-2 text-gray-500">Your {discount}% discount is unlocked at checkout.</p>
+          </div>
+        ) : (
+          <form onSubmit={async (e) => { e.preventDefault();
+            if (!/\\S+@\\S+\\.\\S+/.test(email)) return; setBusy(true);
+            try { await dash.email.identify({ email: email.trim(), properties: { source: "welcome_modal" } }); } catch {}
+            try { localStorage.setItem("marketing_email", email.trim()); } catch {}
+            setBusy(false); setDone(true); }}>
+            <h2 className="text-2xl font-bold">Get {discount}% Off</h2>
+            <p className="mt-1 text-sm text-gray-500">Join our list for exclusive deals.</p>
+            <div className="relative mt-4">
+              <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+                className="w-full rounded-lg border py-3 pl-10 pr-3" />
+            </div>
+            <button disabled={busy} className="mt-4 w-full rounded-lg bg-[var(--accent)] py-3 font-medium text-white disabled:opacity-50">
+              {busy ? "…" : "Claim Discount"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 `);
@@ -651,24 +832,126 @@ export default function LoginPage() {
 `);
 
   add("app/auth/account/page.tsx", `"use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import dash from "@/lib/dash";
 import { useAuth } from "@/context/AuthContext";
 
 export default function AccountPage() {
   const { customer, loading, logout } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [form, setForm] = useState({ first_name: "", last_name: "", phone: "" });
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!customer) return;
+    dash.auth.getProfile().then((r: any) => {
+      const c = r.customer || {};
+      setProfile(c);
+      setForm({ first_name: c.first_name || "", last_name: c.last_name || "", phone: c.phone || "" });
+    }).catch(() => {});
+  }, [customer]);
+
   if (loading) return <div className="mx-auto max-w-2xl px-4 py-16">Loading…</div>;
   if (!customer) return (
     <div className="mx-auto max-w-2xl px-4 py-16">
       <p>Please <Link href="/auth/login" className="text-[var(--accent)] underline">sign in</Link>.</p>
     </div>
   );
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-16">
-      <h1 className="text-2xl font-bold">Hi, {customer.first_name || customer.email}</h1>
-      <div className="mt-6 flex gap-4">
-        <Link href="/auth/account/orders" className="rounded-lg border px-4 py-2">My Orders</Link>
-        <button onClick={logout} className="rounded-lg border px-4 py-2">Sign out</button>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">My Account</h1>
+        <button onClick={logout} className="text-sm text-gray-500 hover:text-black">Sign out</button>
       </div>
+
+      <div className="mt-4 flex flex-wrap gap-3 text-sm">
+        <Link href="/auth/account/orders" className="rounded-lg border px-4 py-2">My Orders</Link>
+        <Link href="/auth/account/affiliates" className="rounded-lg border px-4 py-2">Affiliate Program</Link>
+        {profile?.points != null && (
+          <span className="rounded-lg bg-[var(--accent)]/10 px-4 py-2 text-[var(--accent)] font-medium">{profile.points} points</span>
+        )}
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold">Account details</h2>
+      <form className="mt-3 space-y-3"
+        onSubmit={async (e) => { e.preventDefault(); setBusy(true); setSaved(false);
+          try { await dash.auth.updateProfile(form); setSaved(true); } finally { setBusy(false); } }}>
+        <div className="grid grid-cols-2 gap-3">
+          <input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} placeholder="First name" className="rounded-lg border p-3" />
+          <input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} placeholder="Last name" className="rounded-lg border p-3" />
+        </div>
+        <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className="w-full rounded-lg border p-3" />
+        <input value={profile?.email || customer.email} disabled className="w-full rounded-lg border bg-gray-50 p-3 text-gray-500" />
+        <button disabled={busy} className="rounded-lg bg-[var(--accent)] px-5 py-3 font-medium text-white disabled:opacity-50">{busy ? "Saving…" : "Save changes"}</button>
+        {saved && <span className="ml-3 text-sm text-green-600">Saved!</span>}
+      </form>
+    </div>
+  );
+}
+`);
+
+  add("app/auth/account/affiliates/page.tsx", `"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import dash from "@/lib/dash";
+import { useAuth } from "@/context/AuthContext";
+
+export default function AffiliatesPage() {
+  const { customer, loading } = useAuth();
+  const [status, setStatus] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [applied, setApplied] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!customer) return;
+    dash.affiliates.getMyStatus().then((r: any) => {
+      setStatus(r);
+      if (r?.is_affiliate) dash.affiliates.getMyDashboard().then(setDashboard).catch(() => {});
+    }).catch(() => {});
+  }, [customer]);
+
+  if (loading) return <div className="mx-auto max-w-2xl px-4 py-16">Loading…</div>;
+  if (!customer) return (
+    <div className="mx-auto max-w-2xl px-4 py-16">
+      <p>Please <Link href="/auth/login" className="text-[var(--accent)] underline">sign in</Link> to access the affiliate program.</p>
+    </div>
+  );
+
+  const isAffiliate = status?.is_affiliate;
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-16">
+      <Link href="/auth/account" className="text-sm text-gray-500">&larr; Account</Link>
+      <h1 className="mt-2 text-2xl font-bold">Affiliate Program</h1>
+
+      {isAffiliate ? (
+        <div className="mt-6 space-y-4">
+          <p className="text-green-600 font-medium">You&apos;re an affiliate 🎉</p>
+          {dashboard?.referral_link && (
+            <div>
+              <label className="text-sm text-gray-500">Your referral link</label>
+              <input readOnly value={dashboard.referral_link} className="mt-1 w-full rounded-lg border bg-gray-50 p-3 text-sm" />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg border p-4"><p className="text-xs text-gray-500">Total earned</p><p className="text-xl font-bold">{dashboard?.total_earned ?? "—"}</p></div>
+            <div className="rounded-lg border p-4"><p className="text-xs text-gray-500">Orders</p><p className="text-xl font-bold">{dashboard?.total_orders ?? "—"}</p></div>
+          </div>
+        </div>
+      ) : applied ? (
+        <p className="mt-6 text-green-600">Application submitted — we&apos;ll be in touch!</p>
+      ) : (
+        <form className="mt-6 space-y-3"
+          onSubmit={async (e) => { e.preventDefault(); setBusy(true);
+            try { await dash.affiliates.apply({ email: customer.email }); setApplied(true); } catch {} finally { setBusy(false); } }}>
+          <p className="text-gray-600">Join our affiliate program and earn on every referral.</p>
+          <button disabled={busy} className="rounded-lg bg-[var(--accent)] px-5 py-3 font-medium text-white disabled:opacity-50">{busy ? "…" : "Apply to become an affiliate"}</button>
+        </form>
+      )}
     </div>
   );
 }
