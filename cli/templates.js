@@ -486,6 +486,63 @@ export default function DashImage({
 }
 `);
 
+  // ─── DashVideo: CDN renditions + poster blur-up, connection-aware ─────────--
+  add("components/ui/DashVideo.tsx", `"use client";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+
+interface Rendition { height: number; url: string; }
+export interface VideoData {
+  url?: string; ready?: boolean; poster?: string | null; poster_lqip?: string | null; renditions?: Rendition[] | null;
+}
+
+// Plays transcoded renditions straight from the CDN. Shows the poster (blurred
+// from poster_lqip) first, then loads the rendition that fits the viewer's
+// connection — low res on slow networks, 1080p on fast. Pass the media item's
+// \`video_data\` (from dash.media.getByName(...).file.video_data).
+export default function DashVideo({
+  data, className, style, autoPlay = true, loop = true, muted = true, controls = false,
+}: {
+  data?: VideoData | null; className?: string; style?: CSSProperties;
+  autoPlay?: boolean; loop?: boolean; muted?: boolean; controls?: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [src, setSrc] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const rends = (data?.renditions || []).slice().sort((a, b) => a.height - b.height);
+    if (!rends.length) { setSrc(data?.url || undefined); return; }
+    const eff = (navigator as any)?.connection?.effectiveType || "4g";
+    const target = eff === "4g" ? 1080 : eff === "3g" ? 720 : 640;
+    const pick = rends.find((r) => r.height >= target) || rends[rends.length - 1];
+    setSrc(pick.url);
+  }, [data]);
+
+  if (!data?.url && !src) return null;
+  const lqip = data?.poster_lqip || undefined;
+
+  return (
+    <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
+      {lqip && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={lqip} alt="" aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(12px)", transform: "scale(1.05)" }} />
+      )}
+      <video
+        ref={ref}
+        src={src || data?.url || undefined}
+        poster={data?.poster || undefined}
+        autoPlay={autoPlay}
+        loop={loop}
+        muted={muted}
+        controls={controls}
+        playsInline
+        preload="metadata"
+        style={{ position: "relative", width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
+  );
+}
+`);
+
   add("components/ProductCard.tsx", `import Link from "next/link";
 import DashImage from "@/components/ui/DashImage";
 import { money } from "@/lib/utils";

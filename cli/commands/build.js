@@ -18,7 +18,6 @@ import { loadConfig } from "../config.js";
 import { createApi } from "../api.js";
 import { scanBuild } from "../scanner.js";
 import { uploadAll } from "../uploader.js";
-import { processVideos } from "../video.js";
 import {
   step,
   success,
@@ -36,8 +35,8 @@ export async function run(args) {
   const skipBuild = args.includes("--skip-build");
   const dryRun = args.includes("--dry-run");
   const noActivate = args.includes("--no-activate");
-  const noVideo = args.includes("--no-video");
-  const noImages = args.includes("--no-images");
+  const noMedia = args.includes("--no-media") || args.includes("--no-images");
+  const noWait = args.includes("--no-wait");
 
   printArt();
 
@@ -52,12 +51,6 @@ export async function run(args) {
     success(`Built ${path.join(cfg.cwd, cfg.buildDir)}`);
   } else {
     warn("Skipping build (--skip-build)");
-  }
-
-  // DashVideo: transcode public/ videos (ffmpeg) BEFORE hashing so the
-  // generated renditions + posters get uploaded to the CDN in this same deploy.
-  if (!noVideo) {
-    try { await processVideos(cfg); } catch (e) { warn(`DashVideo skipped: ${e.message}`); }
   }
 
   step("Hashing static files");
@@ -113,15 +106,31 @@ export async function run(args) {
   // Persist asset prefix so next.config.mjs can pick it up via env.
   writeAssetPrefix(cfg.cwd, activated.asset_prefix);
 
-  // Image variants: ask the platform to generate webp + LQIP for every org
-  // image that doesn't have them yet (idempotent — already-done images skip).
-  if (!noImages) {
-    const imgSpin = ora({ text: "Generating image variants (webp + LQIP)…", indent: 4 }).start();
+  // Media optimization — server-side (Celery): webp/LQIP image variants for
+  // every org image + ffmpeg transcodes (640/720/1080p + poster) for every
+  // org video. We trigger it, then stream live progress so you can watch the
+  // renditions appear (640p → 720p → 1080p).
+  if (!noMedia) {
+    step("Optimizing media", "webp variants + video transcodes (on the CDN)");
+    let res = null;
+    const trigger = ora({ text: "Scanning library + queuing jobs…", indent: 4 }).start();
     try {
-      const r = await api.generateImageVariants();
-      imgSpin.succeed(`Image variants queued (${r.queued}/${r.total_sources} sources)`);
+      res = await api.generateImageVariants();
+      trigger.stop();
     } catch (e) {
-      imgSpin.warn(`Image variant generation skipped: ${e.message}`);
+      trigger.warn(`Media optimization skipped: ${e.message}`);
+    }
+    if (res) {
+      const img = res.images || { total: 0, ready: 0 };
+      success(`Images: ${img.ready}/${img.total} already optimized` + (img.total > img.ready ? ` · ${img.total - img.ready} queued` : ""));
+      const videos = res.videos || [];
+      if (videos.length === 0) {
+        success("No videos to transcode");
+      } else if (noWait) {
+        warn(`${videos.length} video(s) queued — transcoding in the background (--no-wait)`);
+      } else {
+        await trackVideos(api, videos);
+      }
     }
   }
 
@@ -185,5 +194,63 @@ function writeAssetPrefix(cwd, prefix) {
       const cleaned = localLines.filter((l) => !l.startsWith("NEXT_PUBLIC_ASSET_PREFIX="));
       fs.writeFileSync(localPath, cleaned.join("\n"));
     }
+  }
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Poll the server-side transcode status and stream friendly progress: a spinner
+// shows the in-flight video + the renditions produced so far (640p → 720p →
+// 1080p), and each video prints a ✓ line with its renditions when it finishes.
+async function trackVideos(api, videos) {
+  const keys = videos.map((v) => v.key);
+  const nameByKey = Object.fromEntries(videos.map((v) => [v.key, v.name]));
+  const label = (h) => `${h}p`;
+  const done = new Set();
+  const spin = ora({ text: `Transcoding ${videos.length} video(s)…`, indent: 4 }).start();
+  const TIMEOUT_MS = 10 * 60 * 1000;
+  const start = Date.now();
+  let everSawProgress = false;
+
+  while (done.size < videos.length && Date.now() - start < TIMEOUT_MS) {
+    let status;
+    try {
+      status = await api.mediaVariantStatus(keys);
+    } catch {
+      await sleep(3000);
+      continue;
+    }
+
+    for (const v of status.videos || []) {
+      const name = nameByKey[v.key] || v.key;
+      if (v.heights && v.heights.length) everSawProgress = true;
+      if ((v.ready || v.error) && !done.has(v.key)) {
+        done.add(v.key);
+        spin.stop();
+        if (v.error) warn(`${name} — ${v.error}`);
+        else success(`${name} → ${(v.heights || []).map(label).join(", ")}`);
+        spin.start();
+      }
+    }
+
+    const inflight = (status.videos || []).find((v) => !done.has(v.key));
+    if (inflight) {
+      const nm = nameByKey[inflight.key] || inflight.key;
+      const hs = (inflight.heights || []).map(label).join(", ");
+      spin.text = `Transcoding ${nm}${hs ? " → " + hs : "…"}   (${done.size}/${videos.length} done)`;
+    }
+    if (done.size < videos.length) await sleep(3000);
+  }
+
+  spin.stop();
+  if (done.size >= videos.length) {
+    success(`All ${videos.length} video(s) transcoded`);
+  } else {
+    warn(
+      `${videos.length - done.size} video(s) still transcoding — they'll finish in the background.` +
+        (!everSawProgress ? " (No progress yet — is ffmpeg installed on the worker?)" : "")
+    );
   }
 }

@@ -15,6 +15,12 @@
  *   Must be a secret key (sk_live_* or sk_test_*). `init` prompts for keys.
  */
 
+// Suppress Node process warnings (e.g. the NODE_TLS_REJECT_UNAUTHORIZED notice
+// emitted when hitting a local self-signed backend) — they print mid-line and
+// garble the progress bars. Keep the CLI output clean.
+process.removeAllListeners("warning");
+process.on("warning", () => {});
+
 import { run as runBuild } from "./commands/build.js";
 import { run as runStatus } from "./commands/status.js";
 import { run as runInit } from "./commands/init.js";

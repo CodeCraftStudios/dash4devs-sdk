@@ -38,5 +38,7 @@ export function createApi({ apiUrl, apiKey }) {
     purge: (paths) => request("POST", "/api/v1/cdn/purge", { paths }),
     status: () => request("GET", "/api/v1/cdn/status"),
     generateImageVariants: () => request("POST", "/api/storefront/admin/media/generate-variants"),
+    mediaVariantStatus: (keys) =>
+      request("GET", "/api/storefront/admin/media/variant-status?keys=" + encodeURIComponent((keys || []).join(","))),
   };
 }
