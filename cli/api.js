@@ -37,5 +37,6 @@ export function createApi({ apiUrl, apiKey }) {
     activate: (deploy_id) => request("POST", "/api/v1/cdn/activate", { deploy_id }),
     purge: (paths) => request("POST", "/api/v1/cdn/purge", { paths }),
     status: () => request("GET", "/api/v1/cdn/status"),
+    generateImageVariants: () => request("POST", "/api/storefront/admin/media/generate-variants"),
   };
 }

@@ -18,6 +18,7 @@ import { loadConfig } from "../config.js";
 import { createApi } from "../api.js";
 import { scanBuild } from "../scanner.js";
 import { uploadAll } from "../uploader.js";
+import { processVideos } from "../video.js";
 import {
   printBanner,
   step,
@@ -35,6 +36,8 @@ export async function run(args) {
   const skipBuild = args.includes("--skip-build");
   const dryRun = args.includes("--dry-run");
   const noActivate = args.includes("--no-activate");
+  const noVideo = args.includes("--no-video");
+  const noImages = args.includes("--no-images");
 
   printBanner();
 
@@ -49,6 +52,12 @@ export async function run(args) {
     success(`Built ${path.join(cfg.cwd, cfg.buildDir)}`);
   } else {
     warn("Skipping build (--skip-build)");
+  }
+
+  // DashVideo: transcode public/ videos (ffmpeg) BEFORE hashing so the
+  // generated renditions + posters get uploaded to the CDN in this same deploy.
+  if (!noVideo) {
+    try { await processVideos(cfg); } catch (e) { warn(`DashVideo skipped: ${e.message}`); }
   }
 
   step("Hashing static files");
@@ -103,6 +112,18 @@ export async function run(args) {
 
   // Persist asset prefix so next.config.mjs can pick it up via env.
   writeAssetPrefix(cfg.cwd, activated.asset_prefix);
+
+  // Image variants: ask the platform to generate webp + LQIP for every org
+  // image that doesn't have them yet (idempotent — already-done images skip).
+  if (!noImages) {
+    const imgSpin = ora({ text: "Generating image variants (webp + LQIP)…", indent: 4 }).start();
+    try {
+      const r = await api.generateImageVariants();
+      imgSpin.succeed(`Image variants queued (${r.queued}/${r.total_sources} sources)`);
+    } catch (e) {
+      imgSpin.warn(`Image variant generation skipped: ${e.message}`);
+    }
+  }
 
   const savedBytes = stats.total_bytes - stats.new_bytes;
   printSummary([
