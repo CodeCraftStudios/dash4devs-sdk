@@ -182,7 +182,7 @@ export class CartModule {
    * @param {string} code - Discount code
    * @returns {Promise<{message: string, cart: Object}>}
    */
-  async applyDiscount(code) {
+  async applyDiscount(code, email) {
     if (!this._cartId) {
       throw new Error("No cart loaded");
     }
@@ -190,7 +190,8 @@ export class CartModule {
     const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/apply-discount`;
     const response = await this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({ code }),
+      // email lets a guest use a customer-specific code assigned to that email.
+      body: JSON.stringify(email ? { code, email } : { code }),
     });
 
     // Update local state from cart response
