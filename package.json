@@ -15,6 +15,10 @@
       "import": "./react/index.js",
       "types": "./react/index.d.ts"
     },
+    "./react/DashImage": {
+      "import": "./react/DashImage.jsx",
+      "types": "./react/index.d.ts"
+    },
     "./utils": {
       "import": "./utils/index.js",
       "types": "./utils/index.d.ts"
