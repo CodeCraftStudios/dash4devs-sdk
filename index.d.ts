@@ -2685,6 +2685,39 @@ export declare class FormsModule {
  * Metadata describing a Page Group (a content collection like Services,
  * Industries, Locations, FAQ, etc.). Returned by `pageGroups.list()`.
  */
+/**
+ * A named image field declared on a Page Group (e.g. "icon", "hero", "cover").
+ * Items fill these slots; the resolved images live on `PageGroupItem.images`.
+ */
+export interface PageGroupImageField {
+  /** Slot key used in `item.images[name]` (e.g. "icon") */
+  name: string;
+  /** Human-readable label for the dashboard */
+  label?: string;
+}
+
+/**
+ * A variant-aware image object for a Page Group named-image slot. Same shape
+ * consumed by `<DashImage image={...} />` (WebP variants + LQIP blur-up).
+ */
+export interface PageGroupImage {
+  /** Original source URL */
+  url: string;
+  /** Tiny base64 blur-up placeholder (may be null until processed) */
+  lqip?: string | null;
+  /** Whether responsive variants have finished generating */
+  variants_ready?: boolean;
+  /** Responsive variants by format */
+  variants?: {
+    webp?: Array<{ width: number; url: string }>;
+    avif?: Array<{ width: number; url: string }>;
+    [format: string]: Array<{ width: number; url: string }> | undefined;
+  };
+  /** Alt text configured for this slot, if any */
+  alt?: string;
+  [key: string]: any;
+}
+
 export interface PageGroupSummary {
   id: string;
   /** Human-readable singular name (e.g. "Service") */
@@ -2697,6 +2730,8 @@ export interface PageGroupSummary {
   singular_path?: string;
   /** Number of published items in this group */
   item_count: number;
+  /** Named image slots declared for items of this group */
+  image_fields?: PageGroupImageField[];
   [key: string]: any;
 }
 
@@ -2717,6 +2752,12 @@ export interface PageGroupItem {
   excerpt: string;
   featured_image: string | null;
   featured_image_alt?: string;
+  /**
+   * Named image slots (declared on the group's `image_fields`), keyed by name.
+   * Each value is variant-aware and renders with `<DashImage image={...} />`.
+   * @example dash.pageGroup("service").get(slug) -> item.images.icon
+   */
+  images?: Record<string, PageGroupImage>;
   /** Free-form structured fields configured on the group */
   custom_fields: Record<string, any>;
   /** Free-form metadata (status flags, ordering, etc.) */
