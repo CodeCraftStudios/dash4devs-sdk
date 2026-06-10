@@ -115,7 +115,14 @@ export interface DashImageData {
 }
 
 export interface DashImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src"> {
-  image: DashImageData | null | undefined;
+  /** Pre-generated responsive image data (variants + LQIP). Preferred. */
+  image?: DashImageData | null | undefined;
+  /**
+   * Bare image URL fallback so <DashImage> is a drop-in for <img>/<Image>.
+   * Used only when `image` is not supplied; renders the original (no variant
+   * srcset) until variant data is available for that url.
+   */
+  src?: string | null;
   alt?: string;
   sizes?: string;
   className?: string;

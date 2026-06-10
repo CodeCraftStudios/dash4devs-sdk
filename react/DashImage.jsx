@@ -1,9 +1,14 @@
+"use client";
+
 /**
  * <DashImage /> — responsive image with LQIP blur-up + progressive loading.
  *
  * Renders a raw <img> with srcset across pre-generated WebP widths served
  * directly from the CDN. LQIP base64 blur shows as CSS background while
  * loading, clears once real pixels paint. Shimmer fallback when no LQIP.
+ *
+ * It is a client component (uses hooks) so it can be rendered directly inside
+ * Server Components — drop it in anywhere as a replacement for <img>/<Image>.
  *
  * Uses React.createElement instead of JSX to avoid Turbopack parse errors
  * when bundled as a dependency in older Next.js versions.
@@ -35,6 +40,11 @@ export function DashImage(props) {
   var fill = props.fill || false;
   var onLoad = props.onLoad;
   var onError = props.onError;
+  // Drop-in <img>/<Image> compatibility props.
+  var src = props.src;
+  var width = props.width;
+  var height = props.height;
+  var loadingProp = props.loading;
 
   var _loaded = useState(false);
   var loaded = _loaded[0];
@@ -50,6 +60,13 @@ export function DashImage(props) {
     if (imgRef.current && imgRef.current.complete) setLoaded(true);
   }, []);
 
+  // Accept a bare `src` URL as a drop-in replacement for <img>/<Image>: when no
+  // image-data object is supplied we synthesize a minimal one so DashImage can
+  // be used anywhere. The responsive variant srcset + LQIP blur-up only kick in
+  // when real image data (carrying variants) is passed via `image` — a plain
+  // url renders the original (still lazy/decoded), which the build step /
+  // backend can later upgrade by supplying variants for that url.
+  if ((!image || !image.url) && src) image = { url: src };
   if (!image || !image.url) return null;
 
   var variants = !variantError && image.variants_ready ? image.variants : null;
@@ -90,7 +107,9 @@ export function DashImage(props) {
     srcSet: webpSet,
     sizes: sizes,
     alt: alt,
-    loading: priority ? "eager" : "lazy",
+    width: fill ? undefined : width,
+    height: fill ? undefined : height,
+    loading: loadingProp || (priority ? "eager" : "lazy"),
     decoding: "async",
     fetchPriority: priority ? "high" : undefined,
     onLoad: handleLoad,
