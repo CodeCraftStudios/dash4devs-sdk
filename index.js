@@ -341,12 +341,16 @@ export class DashClient {
       if (sessionId) headers["X-Session-Id"] = sessionId;
     }
 
-    // Skip Next.js fetch cache in dev mode
-    const isDev = typeof process !== "undefined" && process.env?.DEV === "true";
+    // Cache server reads in production; skip the cache outside production so
+    // local changes show instantly. Keyed on NODE_ENV (always "production" in a
+    // real build/deploy) rather than a manual DEV flag — a stray DEV=true in
+    // .env.local was forcing no-store in prod builds and disabling all caching.
+    const isProd =
+      (typeof process !== "undefined" && process.env?.NODE_ENV) === "production";
     const fetchOptions = { ...options, headers };
     const method = (options.method || "GET").toUpperCase();
     const isServer = typeof window === "undefined";
-    if (isDev) {
+    if (!isProd) {
       fetchOptions.cache = "no-store";
     } else if (
       isServer &&
