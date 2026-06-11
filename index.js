@@ -344,7 +344,37 @@ export class DashClient {
     // Skip Next.js fetch cache in dev mode
     const isDev = typeof process !== "undefined" && process.env?.DEV === "true";
     const fetchOptions = { ...options, headers };
-    if (isDev) fetchOptions.cache = "no-store";
+    const method = (options.method || "GET").toUpperCase();
+    const isServer = typeof window === "undefined";
+    if (isDev) {
+      fetchOptions.cache = "no-store";
+    } else if (
+      isServer &&
+      method === "GET" &&
+      !headers["Authorization"] &&          // never cache personalized/authed reads
+      options.cache === undefined &&        // respect explicit per-call cache choices
+      options.next === undefined
+    ) {
+      // Cache anonymous server-side reads (catalog: categories/products/blogs/
+      // etc.) in Next's Data Cache so SSR pages render from cache instead of
+      // hitting the API on every navigation — the slow part of click-to-page.
+      // The revalidate webhook (createRevalidateHandler) busts these the moment
+      // data changes, so this TTL is just a safety net. Override with the
+      // DASH4DEVS_REVALIDATE env var (seconds).
+      const ttl = Number(
+        (typeof process !== "undefined" && process.env?.DASH4DEVS_REVALIDATE) || 60
+      );
+      // Tag every cached read with a global "dash4devs" tag so changes that
+      // can't be mapped to a specific page path (gallery/media-library images,
+      // async variant-ready completion) can bust ALL cached catalog data at
+      // once via revalidateTag("dash4devs"). Path-precise revalidation (stock,
+      // price, product/category edits) keeps using revalidatePath, so frequent
+      // inventory updates don't thrash this global tag.
+      fetchOptions.next = {
+        revalidate: Number.isFinite(ttl) ? ttl : 60,
+        tags: ["dash4devs"],
+      };
+    }
 
     const response = await fetch(url, fetchOptions);
 
@@ -452,7 +482,7 @@ export class DashClient {
 export function createRevalidateHandler({ secret }) {
   return async function POST(request) {
     const { NextResponse } = await import("next/server");
-    const { revalidatePath } = await import("next/cache");
+    const { revalidatePath, revalidateTag } = await import("next/cache");
 
     let body;
     try {
@@ -465,9 +495,14 @@ export function createRevalidateHandler({ secret }) {
       return NextResponse.json({ error: "Invalid secret" }, { status: 401 });
     }
 
-    const paths = body.paths;
-    if (!Array.isArray(paths) || paths.length === 0) {
-      return NextResponse.json({ error: "paths must be a non-empty array" }, { status: 400 });
+    const paths = Array.isArray(body.paths) ? body.paths : [];
+    // `tags` busts cache by tag (revalidateTag) — used for changes that can't
+    // map to a specific page path (gallery/media-library images, async
+    // variant-ready completion); send ["dash4devs"] to refresh ALL cached
+    // catalog data. At least one of paths/tags must be present.
+    const tags = Array.isArray(body.tags) ? body.tags : [];
+    if (paths.length === 0 && tags.length === 0) {
+      return NextResponse.json({ error: "paths or tags must be provided" }, { status: 400 });
     }
 
     const revalidated = [];
@@ -487,7 +522,16 @@ export function createRevalidateHandler({ secret }) {
       }
     }
 
-    console.log(`[revalidate] Revalidated ${revalidated.length}/${paths.length} paths:`, revalidated);
+    for (const t of tags) {
+      try {
+        revalidateTag(t);
+        revalidated.push(`tag:${t}`);
+      } catch (e) {
+        console.error(`[revalidate] Failed for tag ${t}:`, e.message);
+      }
+    }
+
+    console.log(`[revalidate] Revalidated ${revalidated.length} entries:`, revalidated);
     return NextResponse.json({ revalidated });
   };
 }
