@@ -8,9 +8,30 @@
 export class AuthModule {
   constructor(client) {
     this.client = client;
-    this._customer = null;
+    this.__customer = null;
     this._accessToken = null;
     this._refreshToken = null;
+  }
+
+  /**
+   * Backing for the current customer. Wrapped in a setter so that whenever the
+   * customer becomes known (login, refresh, fetch), we tie the first-party
+   * analytics visitor to that customer automatically — no per-storefront code.
+   * This is what lets conversions attribute to a visitor/source even when the
+   * order itself was placed server-side.
+   */
+  get _customer() {
+    return this.__customer ?? null;
+  }
+  set _customer(value) {
+    this.__customer = value;
+    try {
+      if (value && value.id) {
+        this.client?.insights?.identify?.(String(value.id));
+      } else if (!value) {
+        this.client?.insights?.clearIdentity?.();
+      }
+    } catch { /* analytics must never break auth */ }
   }
 
   /**

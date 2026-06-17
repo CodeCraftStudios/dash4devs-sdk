@@ -337,10 +337,16 @@ export class DashClient {
       headers["Authorization"] = `Bearer ${this.auth._accessToken}`;
     }
 
-    // Include session ID if available (client-side only)
+    // Include session ID + first-party visitor ID if available (client-side
+    // only). The visitor id lets server-side endpoints (e.g. checkout) attribute
+    // the request to the browser's persistent first-party identity.
     if (typeof window !== "undefined") {
       const sessionId = this.getSessionId();
       if (sessionId) headers["X-Session-Id"] = sessionId;
+      try {
+        const visitorId = this.insights?.getVisitorId?.();
+        if (visitorId) headers["X-Visitor-Id"] = visitorId;
+      } catch { /* ignore */ }
     }
 
     // Cache server reads in production; skip the cache outside production so
