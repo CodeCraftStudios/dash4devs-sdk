@@ -2864,6 +2864,66 @@ export declare class ContentTypesModule {
 // TRACKING MODULE
 // =============================================================================
 
+/** Attribution payload handed to checkout.complete() so an order is source-attributed. */
+export interface OrderAttribution {
+  visitor_id: string;
+  session_id: string;
+  ft: Record<string, any>;
+  lt: Record<string, any>;
+}
+
+/**
+ * First-party web analytics — a self-hosted alternative to Google Analytics.
+ * Captures pageviews, clicks, sessions, and conversions into your own backend
+ * with persistent first/last-touch attribution. Initialize once on page load.
+ */
+export declare class InsightsModule {
+  constructor(client: DashClient);
+
+  /** Start collecting (pageviews + clicks auto-tracked). No-op on the server. */
+  init(options?: {
+    autoPageviews?: boolean;
+    autoClicks?: boolean;
+    flushIntervalMs?: number;
+  }): { active: boolean };
+
+  /** Stop collecting and flush remaining events. */
+  destroy(): void;
+
+  /** Track a pageview (automatic; call manually for SPAs if needed). */
+  pageview(path?: string): void;
+
+  /** Track a custom event. */
+  track(name: string, props?: Record<string, any>): void;
+
+  /** Associate the visitor with a known customer (e.g. after login). */
+  identify(customerId: string, props?: Record<string, any>): void;
+
+  /** Clear the customer association (e.g. on logout). */
+  clearIdentity(): void;
+
+  /** Record a client-side conversion (lead/booking/signup goals). */
+  conversion(value?: number, props?: Record<string, any>): void;
+
+  /** SPA route-change hook — fires a pageview if the path changed. */
+  notifyRouteChange(path?: string): void;
+
+  /** The persistent first-party visitor id. */
+  getVisitorId(): string;
+
+  /** The current session id (30-min idle window). */
+  getSessionId(): string;
+
+  /** The stored { ft, lt } attribution object. */
+  getAttribution(): { ft: Record<string, any>; lt: Record<string, any> };
+
+  /** Compact attribution payload for checkout.complete(). */
+  attributionForOrder(): OrderAttribution;
+
+  /** Manually flush buffered events. */
+  flush(useBeacon?: boolean): void;
+}
+
 export declare class TrackingModule {
   constructor(client: DashClient);
 
@@ -3172,6 +3232,9 @@ export declare class DashClient {
 
   /** Analytics tracking (PostHog, ThoughtMetric, Meta Pixel, visit tracking) */
   readonly tracking: TrackingModule;
+
+  /** First-party web analytics — self-hosted pageviews, clicks, sessions, conversions */
+  readonly insights: InsightsModule;
 
   /** Affiliate program — application, dashboard, codes (storefront-facing) */
   readonly affiliates: AffiliatesModule;

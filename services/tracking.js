@@ -163,6 +163,9 @@ export class TrackingModule {
       this._log(`Event: ${eventName}`);
       this._updateOverlay();
     }
+    // Mirror into first-party Insights so we capture our own data even when no
+    // third-party provider (PostHog) is configured. Safe no-op pre-init.
+    try { this.client.insights?.track(eventName, properties); } catch { /* ignore */ }
   }
 
   /**
@@ -176,6 +179,7 @@ export class TrackingModule {
       this._log(`Identified: ${userId}`);
       this._updateOverlay();
     }
+    try { this.client.insights?.identify(userId, properties); } catch { /* ignore */ }
   }
 
   /**

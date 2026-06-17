@@ -116,7 +116,7 @@ export class CheckoutModule {
    * @returns {Promise<Object>} Order data, customer, auth tokens (guest only)
    */
   async complete(data) {
-    const { cartId, email, code, shipping, customerNotes, payment, payment_token, captcha_token, totals } = data;
+    const { cartId, email, code, shipping, customerNotes, payment, payment_token, captcha_token, totals, analytics } = data;
     if (!cartId || !shipping) {
       throw new Error("cartId and shipping are required");
     }
@@ -139,6 +139,15 @@ export class CheckoutModule {
     if (payment_token) body.payment_token = payment_token;
     if (captcha_token) body.captcha_token = captcha_token;
     if (totals) body.totals = totals;
+
+    // First-party attribution: snapshot the visitor's source onto the order so
+    // conversion reporting is accurate. Caller may override via data.analytics;
+    // otherwise we pull it from the Insights collector automatically.
+    let attribution = analytics;
+    if (attribution === undefined && this.client.insights) {
+      try { attribution = this.client.insights.attributionForOrder(); } catch { /* ignore */ }
+    }
+    if (attribution) body.analytics = attribution;
 
     const url = `${this.client.baseURL}/api/storefront/checkout/complete`;
     return this.client._fetch(url, {
