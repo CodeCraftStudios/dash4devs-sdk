@@ -7,7 +7,7 @@
  */
 
 export function buildFiles(ctx) {
-  const { name, url, apiUrl, publicKey, secretKey } = ctx;
+  const { name, url, apiUrl, publicKey, secretKey, welcome } = ctx;
   const safeName = name.replace(/"/g, '\\"');
   const pkgName = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "storefront";
 
@@ -664,7 +664,10 @@ export function CartSidebar() {
 `);
 
   // ─── Pages ────────────────────────────────────────────────────────────────
-  add("app/page.tsx", `import Link from "next/link";
+  // Home page. A freshly-initialized site (welcome:true — what the AI builder's
+  // "Initialize Project" ships) gets a branded, server-rendered "setup complete"
+  // splash. Manual CLI scaffolds get the storefront home that lists products.
+  const STOREFRONT_HOME = `import Link from "next/link";
 import dash from "@/lib/dash";
 import { ProductCard } from "@/components/ProductCard";
 import { NAME } from "@/lib/consts";
@@ -688,7 +691,68 @@ export default async function HomePage() {
     </div>
   );
 }
-`);
+`;
+
+  // Server-rendered on purpose: the splash itself demonstrates the SEO pitch.
+  const WELCOME_HOME = `import Link from "next/link";
+import { NAME } from "@/lib/consts";
+
+export const metadata = { title: "Setup complete" };
+
+export default function HomePage() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-20">
+      <div className="text-center">
+        <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium text-gray-500">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+          Powered by DashForDevs
+        </span>
+        <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">Project setup complete</h1>
+        <p className="mx-auto mt-4 max-w-xl text-lg text-gray-500">
+          {NAME} is live. This is your starting point — open the builder and tell Betty what to
+          change. She edits the code and publishes it for you.
+        </p>
+        <div className="mt-8 flex items-center justify-center gap-3">
+          <Link href="/products" className="rounded-full bg-[var(--accent)] px-6 py-3 font-medium text-white">View store</Link>
+          <a href="https://dashfordevs.com" className="rounded-full border px-6 py-3 font-medium">Learn more</a>
+        </div>
+      </div>
+
+      <div className="mt-20">
+        <h2 className="text-center text-sm font-semibold uppercase tracking-wide text-gray-400">
+          Why this beats the other AI site builders
+        </h2>
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border p-6">
+            <h3 className="font-semibold">Real SEO, not a blank shell</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Tools like Lovable ship client-rendered React — search engines first see an empty
+              page and the content loads later, so you rank poorly. Your site is server-rendered
+              with Next.js: Google gets the full page on the first request. You show up.
+            </p>
+          </div>
+          <div className="rounded-2xl border p-6">
+            <h3 className="font-semibold">Batteries included</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Products, cart, checkout, customer accounts, analytics and tracing are already wired
+              through the DashForDevs SDK. No plumbing — just build.
+            </p>
+          </div>
+          <div className="rounded-2xl border p-6">
+            <h3 className="font-semibold">Edit by chatting</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Describe what you want — &quot;make the hero green&quot;, &quot;add a wholesale page&quot; — and
+              Betty changes the code and ships it. No deploys to manage.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+  add("app/page.tsx", welcome ? WELCOME_HOME : STOREFRONT_HOME);
 
   add("app/about/page.tsx", `import { NAME } from "@/lib/consts";
 export const metadata = { title: "About" };
