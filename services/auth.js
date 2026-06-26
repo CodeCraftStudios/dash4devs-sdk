@@ -375,6 +375,85 @@ export class AuthModule {
   }
 
   /**
+   * List the authenticated customer's saved addresses.
+   *
+   * Part of the multi-address feature. The single `customer.address` and the
+   * flat `address_line1/city/...` fields still work for older integrations —
+   * the "main" address is kept in sync with them automatically.
+   * @returns {Promise<{addresses: Object[]}>}
+   */
+  async getAddresses() {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/addresses`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+    });
+  }
+
+  /**
+   * Create a new saved address.
+   * @param {Object} data - { label?, line1, line2?, city, state?, zip_code?, country?, is_main? }
+   * @returns {Promise<{address: Object}>}
+   */
+  async createAddress(data) {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/addresses`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  /**
+   * Update a saved address. Pass `{ is_main: true }` to make it the main address.
+   * @param {string} addressId
+   * @param {Object} data - Fields to update
+   * @returns {Promise<{address: Object}>}
+   */
+  async updateAddress(addressId, data) {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/addresses/${addressId}`;
+    return this.client._fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  /**
+   * Delete a saved address. If it was the main address, another is promoted.
+   * @param {string} addressId
+   * @returns {Promise<{deleted: boolean}>}
+   */
+  async deleteAddress(addressId) {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/addresses/${addressId}`;
+    return this.client._fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+    });
+  }
+
+  /**
+   * Mark a saved address as the customer's main address (mirrors to the flat
+   * address fields for back-compat).
+   * @param {string} addressId
+   * @returns {Promise<{address: Object}>}
+   */
+  async setMainAddress(addressId) {
+    return this.updateAddress(addressId, { is_main: true });
+  }
+
+  /**
    * Get customer's order history
    * @param {Object} [options] - Pagination options
    * @param {number} [options.limit=20] - Number of orders per page
