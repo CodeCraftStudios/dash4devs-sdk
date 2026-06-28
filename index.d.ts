@@ -1050,6 +1050,24 @@ export interface CustomerAddress {
   country: string;
 }
 
+/**
+ * A saved address from the multi-address relation (one customer, many
+ * addresses). The customer's `address` (single) and flat fields continue to
+ * reflect the `is_main` address for backwards compatibility.
+ */
+export interface SavedAddress {
+  id: string;
+  label: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string | null;
+  state_name: string | null;
+  zip_code: string;
+  country: string;
+  is_main: boolean;
+}
+
 export interface Customer {
   id: string;
   email: string;
@@ -1061,6 +1079,11 @@ export interface Customer {
   has_password: boolean;
   has_address: boolean;
   address: CustomerAddress | null;
+  /**
+   * All saved addresses (multi-address feature). Optional: older API responses
+   * omit it. The single `address` above mirrors the main one.
+   */
+  addresses?: SavedAddress[];
   accepts_marketing: boolean;
   /** Loyalty points balance */
   points: number;
@@ -1166,6 +1189,42 @@ declare class AuthModule {
    * Update customer metadata (key-value pairs, merged server-side).
    */
   updateMetadata(metadata: Record<string, unknown>): Promise<{ customer: Customer }>;
+
+  /** List the authenticated customer's saved addresses. */
+  getAddresses(): Promise<{ addresses: SavedAddress[] }>;
+
+  /** Create a new saved address. Set `is_main` to make it the main address. */
+  createAddress(data: {
+    label?: string;
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string | null;
+    zip_code?: string;
+    country?: string;
+    is_main?: boolean;
+  }): Promise<{ address: SavedAddress }>;
+
+  /** Update a saved address. Pass `{ is_main: true }` to make it the main one. */
+  updateAddress(
+    addressId: string,
+    data: Partial<{
+      label: string;
+      line1: string;
+      line2: string;
+      city: string;
+      state: string | null;
+      zip_code: string;
+      country: string;
+      is_main: boolean;
+    }>
+  ): Promise<{ address: SavedAddress }>;
+
+  /** Delete a saved address. If it was the main one, another is promoted. */
+  deleteAddress(addressId: string): Promise<{ deleted: boolean }>;
+
+  /** Mark a saved address as the customer's main address. */
+  setMainAddress(addressId: string): Promise<{ address: SavedAddress }>;
 
   /**
    * Get customer's order history
