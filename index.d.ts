@@ -1441,6 +1441,84 @@ declare class AuthorizeNetCSR {
   tokenize(cardData: CardData): Promise<PaymentToken>;
 }
 
+/** Options passed to dash.payment.googlePay(). */
+export interface GooglePayOptions {
+  /** Display name shown on the Google Pay sheet. */
+  merchantName?: string;
+  /** Google-issued merchant id. REQUIRED for production (Google Pay Business Console). */
+  merchantId?: string;
+  /** Currency code (default "USD"). */
+  currencyCode?: string;
+  /** Country code (default "US"). */
+  countryCode?: string;
+  /** Override allowed card networks (default AMEX/DISCOVER/JCB/MASTERCARD/VISA). */
+  cardNetworks?: string[];
+  /** Override allowed auth methods (default PAN_ONLY/CRYPTOGRAM_3DS). */
+  authMethods?: string[];
+}
+
+/** Transaction info passed to requestToken()/getTransactionInfo. */
+export interface GooglePayTransactionInfo {
+  /** Order total, e.g. "99.99". */
+  totalPrice: string | number;
+  /** Override the configured currency code. */
+  currencyCode?: string;
+  /** Optional label shown on the sheet. */
+  totalPriceLabel?: string;
+}
+
+/** Styling options for the official Google Pay button. */
+export interface GooglePayButtonOptions {
+  buttonColor?: "default" | "black" | "white";
+  buttonType?: "buy" | "pay" | "checkout" | "order" | "plain" | "short" | "long";
+  buttonSizeMode?: "static" | "fill";
+  buttonRadius?: string | number;
+}
+
+/** Normalized token returned by Google Pay — same shape as PaymentToken. */
+export interface GooglePayToken extends PaymentToken {
+  /** Raw Google Pay PaymentData object (for advanced use). */
+  paymentData: any;
+}
+
+/**
+ * Google Pay controller. Produces a { token, descriptor } that drops straight
+ * into dash.checkout.complete({ payment_token }) — no backend changes needed.
+ */
+export declare class GooglePayCSR {
+  constructor(config: {
+    gateway: string;
+    gatewayMerchantId: string;
+    environment?: string;
+    merchantName?: string;
+    merchantId?: string;
+    currencyCode?: string;
+    countryCode?: string;
+    cardNetworks?: string[];
+    authMethods?: string[];
+    descriptor?: string;
+  });
+  /** Load pay.js and build the PaymentsClient. Idempotent. */
+  load(): Promise<void>;
+  /** Whether this device/user can pay with Google Pay. Never throws. */
+  isAvailable(): Promise<boolean>;
+  /** Create the official Google Pay button element (append it yourself). */
+  createButton(options?: GooglePayButtonOptions & { onClick?: () => void }): HTMLElement;
+  /** Render the button into a container and wire its click to requestToken(). */
+  renderButton(
+    container: HTMLElement,
+    options: {
+      onToken: (token: GooglePayToken) => void | Promise<void>;
+      getTransactionInfo?: GooglePayTransactionInfo | (() => GooglePayTransactionInfo);
+      onError?: (err: any) => void;
+      onCancel?: () => void;
+      button?: GooglePayButtonOptions;
+    }
+  ): HTMLElement;
+  /** Open the Google Pay sheet (from a user gesture) and return a token. */
+  requestToken(txInfo: GooglePayTransactionInfo): Promise<GooglePayToken>;
+}
+
 declare class PaymentModule {
   constructor(client: DashClient);
 
@@ -1479,6 +1557,25 @@ declare class PaymentModule {
    * });
    */
   tokenize(cardData: CardData): Promise<PaymentToken>;
+
+  /**
+   * Create a Google Pay controller bound to the org's active processor.
+   * Requires load() first. Currently only Authorize.net is supported.
+   *
+   * Developers never touch the Google API directly:
+   * @example
+   * const gpay = dash.payment.googlePay({ merchantName: "My Store" });
+   * if (await gpay.isAvailable()) {
+   *   gpay.renderButton(el, {
+   *     getTransactionInfo: () => ({ totalPrice: total }),
+   *     onToken: async ({ token, descriptor }) => {
+   *       await dash.checkout.complete({ cartId, shipping,
+   *         payment_token: { token, descriptor, billing } });
+   *     },
+   *   });
+   * }
+   */
+  googlePay(options?: GooglePayOptions): GooglePayCSR;
 
   /**
    * Charge a tokenized payment via the storefront API.

@@ -582,6 +582,7 @@ export { ContentTypesModule } from "./services/content-types.js";
 // Re-export processor classes for advanced usage
 export { AuthorizeNetCSR } from "./processors/authorize-net.js";
 export { QuickBooksCSR } from "./processors/quickbooks.js";
+export { GooglePayCSR } from "./processors/google-pay.js";
 
 // Default export
 export default DashClient;

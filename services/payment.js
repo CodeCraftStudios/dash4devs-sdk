@@ -18,6 +18,7 @@
 
 import { AuthorizeNetCSR } from "../processors/authorize-net.js";
 import { QuickBooksCSR } from "../processors/quickbooks.js";
+import { GooglePayCSR } from "../processors/google-pay.js";
 
 export class PaymentModule {
   constructor(client) {
@@ -373,6 +374,78 @@ export class PaymentModule {
    */
   get isProcessorConnected() {
     return this._processor?.connected ?? true;
+  }
+
+  /**
+   * Create a Google Pay controller bound to the org's active processor.
+   *
+   * Requires `dash.payment.load()` to have been called first (it supplies the
+   * processor environment and, for Authorize.net, the API Login ID used as the
+   * Google Pay gatewayMerchantId). Currently only Authorize.net is wired up.
+   *
+   * Developers never touch the Google API directly:
+   *
+   *   const gpay = dash.payment.googlePay({ merchantName: "My Store" });
+   *   if (await gpay.isAvailable()) {
+   *     gpay.renderButton(el, {
+   *       getTransactionInfo: () => ({ totalPrice: total }),
+   *       onToken: async ({ token, descriptor }) => {
+   *         await dash.checkout.complete({
+   *           cartId, shipping,
+   *           payment_token: { token, descriptor, billing, ... },
+   *         });
+   *       },
+   *     });
+   *   }
+   *
+   * @param {Object} [options]
+   * @param {string} [options.merchantName] - Name shown on the Google Pay sheet.
+   * @param {string} [options.merchantId] - Google-issued merchant id (REQUIRED
+   *   for production; obtain it in the Google Pay Business Console).
+   * @param {string} [options.currencyCode] - Default "USD".
+   * @param {string} [options.countryCode] - Default "US".
+   * @param {string[]} [options.cardNetworks] - Override allowed card networks.
+   * @param {string[]} [options.authMethods] - Override allowed auth methods.
+   * @returns {import("../processors/google-pay.js").GooglePayCSR}
+   */
+  googlePay(options = {}) {
+    if (!this._loaded) {
+      throw new Error(
+        "Call dash.payment.load() before dash.payment.googlePay()."
+      );
+    }
+
+    // Map the active processor to a Google Pay gateway + merchant id.
+    let gateway;
+    let gatewayMerchantId;
+    if (this._processor?.slug === "authorize-net") {
+      gateway = "authorizenet";
+      gatewayMerchantId = this._clientConfig?.api_login_id;
+    } else {
+      throw new Error(
+        `Google Pay is not supported for processor "${this._processor?.slug}". ` +
+        "Only Authorize.net is wired up for Google Pay."
+      );
+    }
+
+    if (!gatewayMerchantId) {
+      throw new Error(
+        "Google Pay could not resolve a gatewayMerchantId (api_login_id) from " +
+        "the processor config. Check the org's Authorize.net configuration."
+      );
+    }
+
+    return new GooglePayCSR({
+      gateway,
+      gatewayMerchantId,
+      environment: this._processor?.environment, // "test" | "live"
+      merchantName: options.merchantName,
+      merchantId: options.merchantId,
+      currencyCode: options.currencyCode,
+      countryCode: options.countryCode,
+      cardNetworks: options.cardNetworks,
+      authMethods: options.authMethods,
+    });
   }
 
   _createHandler(slug, config) {
