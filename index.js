@@ -37,6 +37,7 @@ import { AdminModule } from "./services/admin.js";
 import { ContentTypesModule } from "./services/content-types.js";
 import { PageGroupsModule, PageGroup } from "./services/page-groups.js";
 import { FormsModule } from "./services/forms.js";
+import { SurveyModule } from "./services/survey.js";
 import { CalendarModule } from "./services/calendar.js";
 
 // =============================================================================
@@ -134,6 +135,14 @@ export class DashClient {
     // The React `useDashForm` hook (`/react`) provides Django-template-style
     // field accessors on top of these primitives.
     this.forms = new FormsModule(this);
+
+    // ── Surveys ───────────────────────────────────────────────────────
+    // Dashboard-built surveys (typed questions: radio, checkbox, text, etc.).
+    // Read the schema via `dash.survey.get(slug)`, validate locally with
+    // `dash.survey.validate(schema, values)`, and submit via
+    // `dash.survey.submit(slug, values)`. The responding customer is taken
+    // from the logged-in Bearer token — not passed in.
+    this.survey = new SurveyModule(this);
 
     // ── Page Groups (storefront content collections) ───────────────────
     // Public reads. Use either:
@@ -577,6 +586,7 @@ export { SitemapModule } from "./services/sitemap.js";
 export { CalendarModule } from "./services/calendar.js";
 export { PageGroupsModule, PageGroup } from "./services/page-groups.js";
 export { FormsModule } from "./services/forms.js";
+export { SurveyModule } from "./services/survey.js";
 export { ContentTypesModule } from "./services/content-types.js";
 
 // Re-export processor classes for advanced usage

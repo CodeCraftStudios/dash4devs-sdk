@@ -2868,6 +2868,105 @@ export declare class FormsModule {
 }
 
 // =============================================================================
+// SURVEY MODULE
+// =============================================================================
+
+export type SurveyQuestionType =
+  | "short_text"
+  | "long_text"
+  | "radio"
+  | "checkbox"
+  | "dropdown"
+  | "number"
+  | "email"
+  | "date";
+
+export interface SurveyQuestionOption {
+  value: string;
+  label: string;
+}
+
+export interface SurveyQuestionShowWhen {
+  /** Question id this condition depends on. */
+  field: string;
+  /** Value the referenced question must equal for this question to show. */
+  equals: unknown;
+}
+
+export interface SurveyQuestion {
+  id: string;
+  order: number;
+  type: SurveyQuestionType | string;
+  label: string;
+  help_text?: string;
+  placeholder?: string;
+  required?: boolean;
+  /** Present for choice types (radio/checkbox/dropdown). */
+  options?: SurveyQuestionOption[];
+  show_when?: SurveyQuestionShowWhen | null;
+  [key: string]: any;
+}
+
+export interface SurveySchema {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  status: string;
+  success_message?: string;
+  settings?: Record<string, unknown>;
+  questions: SurveyQuestion[];
+  [key: string]: any;
+}
+
+export interface SurveyGetResponse {
+  survey: SurveySchema;
+}
+
+export interface SurveyValidateResult {
+  valid: boolean;
+  /** Maps question id -> reason code ('required' | 'invalid_option' | 'too_long' | 'invalid'). */
+  fields: Record<string, string>;
+}
+
+export interface SurveySubmitOptions {
+  /** URL of the page that originated the submission (defaults to window.location.href). */
+  sourceUrl?: string;
+  /** Optional respondent identity for anonymous submissions. */
+  respondentName?: string;
+  respondentEmail?: string;
+}
+
+export interface SurveySubmitResponse {
+  success: boolean;
+  response_id: string;
+  success_message: string;
+}
+
+export declare class SurveyModule {
+  constructor(client: DashClient);
+
+  /** Fetch a published survey's schema/metadata for `slug`. */
+  get(slug: string): Promise<SurveyGetResponse>;
+
+  /**
+   * Client-side validation against a fetched survey schema (same rules the
+   * server enforces). `values` is keyed by question id.
+   */
+  validate(schema: SurveySchema | SurveyGetResponse, values?: Record<string, unknown>): SurveyValidateResult;
+
+  /**
+   * Submit answers (keyed by question id) to survey `slug`. The responding
+   * customer is taken from the logged-in Bearer token — not passed here.
+   */
+  submit(
+    slug: string,
+    values: Record<string, unknown>,
+    options?: SurveySubmitOptions
+  ): Promise<SurveySubmitResponse>;
+}
+
+// =============================================================================
 // PAGE GROUPS MODULE
 // =============================================================================
 
@@ -3497,6 +3596,7 @@ export declare class DashClient {
    * await dash.forms.submit("contact", { answers: { email: "..." } });
    */
   readonly forms: FormsModule;
+  readonly survey: SurveyModule;
 
   /**
    * Page Groups API — storefront content collections (Services, Industries,
