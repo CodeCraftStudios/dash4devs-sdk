@@ -1455,6 +1455,8 @@ export interface GooglePayOptions {
   cardNetworks?: string[];
   /** Override allowed auth methods (default PAN_ONLY/CRYPTOGRAM_3DS). */
   authMethods?: string[];
+  /** Override the Google Pay environment ("test" forces TEST, e.g. on localhost). Defaults to the processor env. */
+  environment?: "test" | "live";
 }
 
 /** Transaction info passed to requestToken()/getTransactionInfo. */

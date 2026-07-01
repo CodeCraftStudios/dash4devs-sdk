@@ -406,6 +406,11 @@ export class PaymentModule {
    * @param {string} [options.countryCode] - Default "US".
    * @param {string[]} [options.cardNetworks] - Override allowed card networks.
    * @param {string[]} [options.authMethods] - Override allowed auth methods.
+   * @param {"test"|"live"} [options.environment] - Override the Google Pay
+   *   environment. Defaults to the processor's environment. Pass "test" to force
+   *   Google Pay TEST mode (e.g. on localhost) so the sheet opens without a
+   *   registered production merchant — note a TEST token won't settle a real
+   *   charge through a live Authorize.net account.
    * @returns {import("../processors/google-pay.js").GooglePayCSR}
    */
   googlePay(options = {}) {
@@ -438,7 +443,8 @@ export class PaymentModule {
     return new GooglePayCSR({
       gateway,
       gatewayMerchantId,
-      environment: this._processor?.environment, // "test" | "live"
+      // Explicit override wins; otherwise follow the processor env ("test"|"live").
+      environment: options.environment || this._processor?.environment,
       merchantName: options.merchantName,
       merchantId: options.merchantId,
       currencyCode: options.currencyCode,
