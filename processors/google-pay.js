@@ -75,6 +75,14 @@ export class GooglePayCSR {
     this._authMethods = config.authMethods || DEFAULT_AUTH_METHODS;
     this._descriptor = config.descriptor || GOOGLE_PAY_DESCRIPTOR;
 
+    // Buyer-info collection (express checkout): let the Google sheet gather the
+    // email / shipping / billing address so the merchant form can be skipped.
+    this._emailRequired = !!config.emailRequired;
+    this._shippingAddressRequired = !!config.shippingAddressRequired;
+    this._shippingAddressParameters = config.shippingAddressParameters || null;
+    this._billingAddressRequired = !!config.billingAddressRequired;
+    this._phoneNumberRequired = !!config.phoneNumberRequired;
+
     this._loaded = false;
     this._loading = null;
     this._client = null; // google.payments.api.PaymentsClient
@@ -87,6 +95,15 @@ export class GooglePayCSR {
       parameters: {
         allowedAuthMethods: this._authMethods,
         allowedCardNetworks: this._cardNetworks,
+        ...(this._billingAddressRequired
+          ? {
+              billingAddressRequired: true,
+              billingAddressParameters: {
+                format: "FULL",
+                phoneNumberRequired: this._phoneNumberRequired,
+              },
+            }
+          : {}),
       },
       tokenizationSpecification: {
         type: "PAYMENT_GATEWAY",
@@ -283,6 +300,11 @@ export class GooglePayCSR {
       apiVersion: API_VERSION,
       apiVersionMinor: API_VERSION_MINOR,
       allowedPaymentMethods: [this._baseCardPaymentMethod()],
+      emailRequired: this._emailRequired,
+      shippingAddressRequired: this._shippingAddressRequired,
+      ...(this._shippingAddressRequired && this._shippingAddressParameters
+        ? { shippingAddressParameters: this._shippingAddressParameters }
+        : {}),
       transactionInfo: {
         totalPriceStatus: "FINAL",
         totalPrice,
@@ -310,7 +332,17 @@ export class GooglePayCSR {
         ? window.btoa(rawToken)
         : Buffer.from(rawToken, "utf-8").toString("base64");
 
-    return { token: b64, descriptor: this._descriptor, paymentData };
+    return {
+      token: b64,
+      descriptor: this._descriptor,
+      // Buyer info collected by the sheet (present only when requested). Address
+      // shape: { name, address1, address2, address3, locality, administrativeArea,
+      // postalCode, countryCode, phoneNumber }. administrativeArea is the state.
+      email: paymentData?.email || "",
+      shippingAddress: paymentData?.shippingAddress || null,
+      billingAddress: paymentData?.paymentMethodData?.info?.billingAddress || null,
+      paymentData,
+    };
   }
 }
 

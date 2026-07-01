@@ -1457,6 +1457,30 @@ export interface GooglePayOptions {
   authMethods?: string[];
   /** Override the Google Pay environment ("test" forces TEST, e.g. on localhost). Defaults to the processor env. */
   environment?: "test" | "live";
+  /** Ask the Google sheet to collect the buyer's email. */
+  emailRequired?: boolean;
+  /** Ask the Google sheet to collect the shipping address. */
+  shippingAddressRequired?: boolean;
+  /** Shipping-address constraints, e.g. { allowedCountryCodes: ["US"], phoneNumberRequired: true }. */
+  shippingAddressParameters?: { allowedCountryCodes?: string[]; phoneNumberRequired?: boolean };
+  /** Ask the Google sheet to collect the billing address (returned in the token). */
+  billingAddressRequired?: boolean;
+  /** Require a phone number with the billing address. */
+  phoneNumberRequired?: boolean;
+}
+
+/** A Google Pay address as returned in the token (administrativeArea = state). */
+export interface GooglePayAddress {
+  name?: string;
+  address1?: string;
+  address2?: string;
+  address3?: string;
+  locality?: string;
+  administrativeArea?: string;
+  postalCode?: string;
+  countryCode?: string;
+  phoneNumber?: string;
+  sortingCode?: string;
 }
 
 /** Transaction info passed to requestToken()/getTransactionInfo. */
@@ -1479,6 +1503,12 @@ export interface GooglePayButtonOptions {
 
 /** Normalized token returned by Google Pay — same shape as PaymentToken. */
 export interface GooglePayToken extends PaymentToken {
+  /** Buyer email, if emailRequired was set. */
+  email?: string;
+  /** Shipping address, if shippingAddressRequired was set. */
+  shippingAddress?: GooglePayAddress | null;
+  /** Billing address, if billingAddressRequired was set. */
+  billingAddress?: GooglePayAddress | null;
   /** Raw Google Pay PaymentData object (for advanced use). */
   paymentData: any;
 }

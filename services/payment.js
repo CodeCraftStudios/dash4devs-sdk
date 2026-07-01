@@ -451,6 +451,12 @@ export class PaymentModule {
       countryCode: options.countryCode,
       cardNetworks: options.cardNetworks,
       authMethods: options.authMethods,
+      // Express-checkout buyer-info collection (optional).
+      emailRequired: options.emailRequired,
+      shippingAddressRequired: options.shippingAddressRequired,
+      shippingAddressParameters: options.shippingAddressParameters,
+      billingAddressRequired: options.billingAddressRequired,
+      phoneNumberRequired: options.phoneNumberRequired,
     });
   }
 
