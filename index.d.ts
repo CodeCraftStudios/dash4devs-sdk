@@ -2943,6 +2943,30 @@ export interface SurveySubmitResponse {
   success_message: string;
 }
 
+export interface LandingSurveyPayload {
+  /** Identifies the landing page variant/campaign. */
+  campaign?: string;
+  ordered?: "yes" | "no" | "";
+  source?: string;
+  /** 1–5 (Path A only). */
+  rating?: number;
+  /** Path B multi-select. */
+  held_back?: string[];
+  /** Path A free text. */
+  feedback?: string;
+  /** Path B free text. */
+  change_mind?: string;
+  /** Optional email for anonymous respondents. */
+  followup_email?: string;
+  /** Defaults to window.location.href in the browser. */
+  source_url?: string;
+}
+
+export interface LandingSurveySubmitResponse {
+  success: boolean;
+  response_id: string;
+}
+
 export declare class SurveyModule {
   constructor(client: DashClient);
 
@@ -2964,6 +2988,13 @@ export declare class SurveyModule {
     values: Record<string, unknown>,
     options?: SurveySubmitOptions
   ): Promise<SurveySubmitResponse>;
+
+  /**
+   * Submit a bespoke "landing survey" (branching quiz) response. Not tied to a
+   * dashboard-built schema. Attributed to the logged-in customer via the Bearer
+   * token when present, else anonymous.
+   */
+  submitLanding(payload: LandingSurveyPayload): Promise<LandingSurveySubmitResponse>;
 }
 
 // =============================================================================

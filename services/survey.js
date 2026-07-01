@@ -144,6 +144,40 @@ export class SurveyModule {
       }),
     });
   }
+
+  /**
+   * Submit a "landing survey" response — the bespoke branching quiz used as a
+   * discount-for-feedback funnel (age gate -> ordered? -> source ->
+   * rating/feedback or held-back/change-mind). Unlike `submit()` this is not
+   * tied to a dashboard-built survey schema; the payload fields are fixed.
+   *
+   * Attributed to the logged-in customer via the Bearer token when present,
+   * else anonymous (optionally with a follow-up email). Best-effort — callers
+   * typically fire-and-forget and never block the UI on it.
+   *
+   * @param {object} payload
+   * @param {string}   [payload.campaign]        Identifies the landing page variant.
+   * @param {"yes"|"no"|""} [payload.ordered]
+   * @param {string}   [payload.source]
+   * @param {number}   [payload.rating]          1–5 (Path A only).
+   * @param {string[]} [payload.held_back]       Path B multi-select.
+   * @param {string}   [payload.feedback]        Path A free text.
+   * @param {string}   [payload.change_mind]     Path B free text.
+   * @param {string}   [payload.followup_email]  Optional email for anonymous respondents.
+   * @param {string}   [payload.source_url]      Defaults to the current page URL in the browser.
+   * @returns {Promise<{ success: boolean, response_id: string }>}
+   */
+  async submitLanding(payload = {}) {
+    const sourceUrl =
+      payload.source_url ??
+      (typeof window !== "undefined" && window.location ? window.location.href : undefined);
+
+    const url = `${this.client.baseURL}/api/storefront/landing-survey/submit`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ ...payload, source_url: sourceUrl }),
+    });
+  }
 }
 
 export default SurveyModule;
