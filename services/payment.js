@@ -446,7 +446,10 @@ export class PaymentModule {
       // Explicit override wins; otherwise follow the processor env ("test"|"live").
       environment: options.environment || this._processor?.environment,
       merchantName: options.merchantName,
-      merchantId: options.merchantId,
+      // Merchant id resolution: explicit option wins, else the platform-wide id
+      // the backend serves via client-config (GOOGLE_PAY_MERCHANT_ID). So stores
+      // don't need their own env var — it's configured once, backend-side.
+      merchantId: options.merchantId || this._processor?.google_pay_merchant_id,
       currencyCode: options.currencyCode,
       countryCode: options.countryCode,
       cardNetworks: options.cardNetworks,

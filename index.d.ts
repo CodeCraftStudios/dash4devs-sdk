@@ -1294,6 +1294,8 @@ export interface StorefrontPaymentProcessor {
   environment: "test" | "live";
   supported_currencies?: string[];
   features?: string[];
+  /** Platform-wide Google Pay merchant id (Authorize.net only), served by the backend. */
+  google_pay_merchant_id?: string;
 }
 
 export interface PaymentToken {
