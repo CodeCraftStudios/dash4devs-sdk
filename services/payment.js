@@ -411,6 +411,12 @@ export class PaymentModule {
    *   Google Pay TEST mode (e.g. on localhost) so the sheet opens without a
    *   registered production merchant — note a TEST token won't settle a real
    *   charge through a live Authorize.net account.
+   * @param {Function} [options.onShippingAddressChange] - Dynamic pricing for
+   *   true express checkout. Called while the sheet is open with the shopper's
+   *   intermediate address ({countryCode, administrativeArea, locality,
+   *   postalCode}); return { lineItems?, totalPrice, currencyCode?, error? } to
+   *   update the sheet's FINAL total with live shipping+tax. Without it, the
+   *   sheet can only show the pre-address estimate.
    * @returns {import("../processors/google-pay.js").GooglePayCSR}
    */
   googlePay(options = {}) {
@@ -460,6 +466,9 @@ export class PaymentModule {
       shippingAddressParameters: options.shippingAddressParameters,
       billingAddressRequired: options.billingAddressRequired,
       phoneNumberRequired: options.phoneNumberRequired,
+      // Dynamic pricing resolver: recompute shipping+tax LIVE from the address the
+      // shopper picks in the sheet so the total is correct before they authorize.
+      onShippingAddressChange: options.onShippingAddressChange,
     });
   }
 

@@ -1469,6 +1469,26 @@ export interface GooglePayOptions {
   billingAddressRequired?: boolean;
   /** Require a phone number with the billing address. */
   phoneNumberRequired?: boolean;
+  /**
+   * Dynamic pricing (true express checkout). Called WHILE the Google Pay sheet
+   * is open, with the intermediate address the shopper selected (country/state/
+   * city/zip — Google withholds the street line until authorization). Return the
+   * recomputed line items + FINAL total so the sheet shows and authorizes the
+   * correct amount (shipping + tax), instead of the pre-address estimate.
+   * Return `{ error }` to reject an unserviceable address inside the sheet.
+   */
+  onShippingAddressChange?: (address: {
+    countryCode: string;
+    administrativeArea: string;
+    locality: string;
+    postalCode: string;
+  }) => Promise<{
+    lineItems?: Array<{ label: string; price: string | number; type?: "LINE_ITEM" | "SUBTOTAL" | "TAX" }>;
+    totalPrice: string | number;
+    currencyCode?: string;
+    totalPriceLabel?: string;
+    error?: string | { message: string };
+  } | { error: string | { message: string } }>;
 }
 
 /** A Google Pay address as returned in the token (administrativeArea = state). */

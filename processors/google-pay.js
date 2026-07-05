@@ -83,6 +83,24 @@ export class GooglePayCSR {
     this._billingAddressRequired = !!config.billingAddressRequired;
     this._phoneNumberRequired = !!config.phoneNumberRequired;
 
+    // Dynamic pricing (true express checkout). When set, the Google Pay sheet
+    // collects the shipping address and — WHILE STILL OPEN — calls this resolver
+    // to recompute shipping/tax so the shopper sees (and authorizes) the correct
+    // FINAL total. Without it, the sheet can only show the pre-address estimate
+    // (usually the subtotal), which then mismatches the real charge.
+    //
+    // Signature:
+    //   async ({ countryCode, administrativeArea, locality, postalCode }) =>
+    //     ({ lineItems?: [{label, price, type?}], totalPrice, currencyCode?,
+    //        totalPriceLabel?, error? })
+    //
+    // `administrativeArea` is the state, `locality` the city. Google withholds
+    // the STREET line until the shopper authorizes, so the resolver must be able
+    // to price on state/city/zip alone (tax needs the state; carrier rates work
+    // off the zip). Return `{ error }` (a string or {message}) to reject an
+    // unserviceable address right inside the sheet (e.g. a banned state).
+    this._onShippingAddressChange = config.onShippingAddressChange || null;
+
     this._loaded = false;
     this._loading = null;
     this._client = null; // google.payments.api.PaymentsClient
@@ -138,9 +156,19 @@ export class GooglePayCSR {
     this._loading = new Promise((resolve, reject) => {
       const init = () => {
         try {
-          this._client = new window.google.payments.api.PaymentsClient({
-            environment: this._environment,
-          });
+          const clientOptions = { environment: this._environment };
+          // Wire dynamic pricing: Google invokes onPaymentDataChanged while the
+          // sheet is open whenever the shopper picks/changes their address. We
+          // bounce it through `this._handlePaymentDataChanged` (reads the
+          // resolver off `this` at call time, so the consumer can hot-swap it
+          // per render to avoid stale cart state).
+          if (this._onShippingAddressChange) {
+            clientOptions.paymentDataCallbacks = {
+              onPaymentDataChanged: (intermediate) =>
+                this._handlePaymentDataChanged(intermediate),
+            };
+          }
+          this._client = new window.google.payments.api.PaymentsClient(clientOptions);
           this._loaded = true;
           resolve();
         } catch (err) {
@@ -175,6 +203,68 @@ export class GooglePayCSR {
     });
 
     return this._loading;
+  }
+
+  /**
+   * @private — bridges Google's onPaymentDataChanged to the consumer resolver.
+   * Google calls this with an INTERMEDIATE address (country/state/city/zip, no
+   * street). We hand that to `_onShippingAddressChange` and translate its result
+   * back into the { newTransactionInfo } / { error } shape Google expects.
+   * @param {Object} intermediatePaymentData
+   * @returns {Promise<Object>}
+   */
+  async _handlePaymentDataChanged(intermediatePaymentData) {
+    const resolver = this._onShippingAddressChange;
+    if (typeof resolver !== "function") return {};
+
+    const addr = intermediatePaymentData?.shippingAddress || {};
+    try {
+      const res = await resolver({
+        countryCode: addr.countryCode || this._countryCode,
+        administrativeArea: addr.administrativeArea || "", // state
+        locality: addr.locality || "",                     // city
+        postalCode: addr.postalCode || "",
+      });
+
+      // Unserviceable address → surface the reason inside the sheet.
+      if (res && res.error) {
+        const message =
+          typeof res.error === "string"
+            ? res.error
+            : res.error.message || "This address can't be shipped to.";
+        return {
+          error: { reason: "SHIPPING_ADDRESS_UNSERVICEABLE", message, intent: "SHIPPING_ADDRESS" },
+        };
+      }
+      if (!res || res.totalPrice == null) return {};
+
+      const displayItems = Array.isArray(res.lineItems)
+        ? res.lineItems.map((li) => ({
+            label: li.label,
+            type: li.type || "LINE_ITEM",
+            price: String(li.price),
+          }))
+        : undefined;
+
+      return {
+        newTransactionInfo: {
+          currencyCode: res.currencyCode || this._currencyCode,
+          countryCode: this._countryCode,
+          totalPriceStatus: "FINAL",
+          totalPrice: String(res.totalPrice),
+          totalPriceLabel: res.totalPriceLabel || "Total",
+          ...(displayItems ? { displayItems } : {}),
+        },
+      };
+    } catch (err) {
+      return {
+        error: {
+          reason: "OTHER_ERROR",
+          message: (err && err.message) || "Couldn't update the total for this address.",
+          intent: "SHIPPING_ADDRESS",
+        },
+      };
+    }
   }
 
   /**
@@ -296,17 +386,25 @@ export class GooglePayCSR {
       throw new Error("requestToken requires a totalPrice.");
     }
 
+    // With a resolver wired up, the total shown here is only the pre-address
+    // ESTIMATE — onPaymentDataChanged replaces it with the FINAL shipping+tax
+    // total once the shopper selects an address. SHIPPING_ADDRESS must be
+    // declared as a callback intent for Google to fire that callback.
+    const dynamicPricing = typeof this._onShippingAddressChange === "function";
+
     const paymentDataRequest = {
       apiVersion: API_VERSION,
       apiVersionMinor: API_VERSION_MINOR,
       allowedPaymentMethods: [this._baseCardPaymentMethod()],
       emailRequired: this._emailRequired,
-      shippingAddressRequired: this._shippingAddressRequired,
-      ...(this._shippingAddressRequired && this._shippingAddressParameters
+      // Dynamic pricing needs the address, so force it on when a resolver is set.
+      shippingAddressRequired: this._shippingAddressRequired || dynamicPricing,
+      ...((this._shippingAddressRequired || dynamicPricing) && this._shippingAddressParameters
         ? { shippingAddressParameters: this._shippingAddressParameters }
         : {}),
+      ...(dynamicPricing ? { callbackIntents: ["SHIPPING_ADDRESS"] } : {}),
       transactionInfo: {
-        totalPriceStatus: "FINAL",
+        totalPriceStatus: dynamicPricing ? "ESTIMATED" : "FINAL",
         totalPrice,
         currencyCode: txInfo.currencyCode || this._currencyCode,
         countryCode: this._countryCode,
