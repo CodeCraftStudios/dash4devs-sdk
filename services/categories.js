@@ -103,6 +103,45 @@ export class CategoriesModule {
   async getChildren(parentSlug) {
     return this.list({ parent: parentSlug });
   }
+
+  /**
+   * Get the labelled file attachments for a category.
+   * Files are managed per-category in the dashboard, each tagged with a `label`
+   * (e.g. "menu", "coa", "lab-report"). Returned already sorted by `order`.
+   *
+   * @param {string} slug - Category slug
+   * @param {Object} [options]
+   * @param {string} [options.label] - Only return files with this exact label
+   * @returns {Promise<Array<{id: string, url: string, label: string, name: string, order: number}>>}
+   *
+   * @example
+   * const menus = await dash.categories.getFiles("thca-flower", { label: "menu" });
+   */
+  async getFiles(slug, options = {}) {
+    const res = await this.get(slug, { includeProducts: false, includeChildren: false });
+    const files = (res && res.category && res.category.files) || [];
+    if (options.label != null && options.label !== "") {
+      return files.filter((f) => f.label === options.label);
+    }
+    return files;
+  }
+
+  /**
+   * Get a single file from a category by label. When multiple files share the
+   * label, the one with the lowest `order` is returned. Returns null if none.
+   *
+   * @param {string} slug - Category slug
+   * @param {string} label - The file label to select
+   * @returns {Promise<{id: string, url: string, label: string, name: string, order: number} | null>}
+   *
+   * @example
+   * const coa = await dash.categories.getFile("thca-flower", "coa");
+   * if (coa) window.open(coa.url);
+   */
+  async getFile(slug, label) {
+    const files = await this.getFiles(slug, { label });
+    return files.length ? files[0] : null;
+  }
 }
 
 export default CategoriesModule;

@@ -217,6 +217,18 @@ export interface CategoryImage {
   order: number;
 }
 
+/** A labelled file attached to a category (fetch via getFile/getFiles). */
+export interface CategoryFile {
+  id: string;
+  /** Absolute URL to the file */
+  url: string | null;
+  /** Selector label (e.g. "menu", "coa") */
+  label: string;
+  /** Display name (defaults to the original filename) */
+  name: string;
+  order: number;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -247,6 +259,8 @@ export interface Category {
   schema_json: object | null;
   /** Gallery images for the category */
   images: CategoryImage[];
+  /** Labelled file attachments (fetch a specific one via getFile) */
+  files?: CategoryFile[];
   children?: Category[];
   products?: {
     items: Product[];
@@ -778,6 +792,20 @@ declare class CategoriesModule {
    * @param parentSlug - Parent category slug
    */
   getChildren(parentSlug: string): Promise<CategoriesListResponse>;
+
+  /**
+   * Get the labelled file attachments for a category (sorted by order).
+   * @param slug - Category slug
+   * @param options.label - Only return files with this exact label
+   */
+  getFiles(slug: string, options?: { label?: string }): Promise<CategoryFile[]>;
+
+  /**
+   * Get a single file from a category by label (lowest order wins, else null).
+   * @param slug - Category slug
+   * @param label - The file label to select
+   */
+  getFile(slug: string, label: string): Promise<CategoryFile | null>;
 }
 
 // =============================================================================
