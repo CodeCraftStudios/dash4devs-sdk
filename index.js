@@ -253,12 +253,17 @@ export class DashClient {
       const brandingDiv = document.createElement("div");
       brandingDiv.id = "dash4devs-branding";
       brandingDiv.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 2147483647;
         text-align: center;
-        padding: 16px;
+        padding: 10px 16px;
         font-size: 14px;
         color: #6b7280;
+        background: #ffffff;
         border-top: 1px solid #e5e7eb;
-        margin-top: 16px;
       `;
 
       brandingDiv.innerHTML = `
@@ -266,8 +271,8 @@ export class DashClient {
         <span style="color: #4b5563; font-size: 11px; margin-left: 4px;">v${this.version}</span>
       `;
 
-      // Append to footer
-      footer.appendChild(brandingDiv);
+      // Fixed bar pinned to the bottom of the viewport, above all page content.
+      document.body.appendChild(brandingDiv);
     };
 
     // Delay injection well past SSR hydration to prevent hydration mismatches.
