@@ -253,13 +253,10 @@ export class DashClient {
       const brandingDiv = document.createElement("div");
       brandingDiv.id = "dash4devs-branding";
       brandingDiv.style.cssText = `
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        position: relative;
         z-index: 2147483647;
         text-align: center;
-        padding: 10px 16px;
+        padding: 12px 16px;
         font-size: 14px;
         color: #6b7280;
         background: #ffffff;
@@ -271,7 +268,8 @@ export class DashClient {
         <span style="color: #4b5563; font-size: 11px; margin-left: 4px;">v${this.version}</span>
       `;
 
-      // Fixed bar pinned to the bottom of the viewport, above all page content.
+      // Injected after all page content — the last element in <body>, in normal
+      // flow (not fixed), as a solid white strip above surrounding content.
       document.body.appendChild(brandingDiv);
     };
 
