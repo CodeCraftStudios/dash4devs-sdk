@@ -110,6 +110,21 @@ export class AuthModule {
    * @param {boolean} [options.accepts_marketing] - Marketing consent
    * @returns {Promise<{message: string, email: string}>}
    */
+  /**
+   * Check whether a customer already exists for this org by email and/or phone.
+   * @param {Object} params
+   * @param {string} [params.email]
+   * @param {string} [params.phone] - E.164 or any format
+   * @returns {Promise<{email_exists: boolean, phone_exists: boolean}>}
+   */
+  async checkExists({ email, phone } = {}) {
+    const url = `${this.client.baseURL}/api/storefront/auth/check-exists`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ email: email || "", phone: phone || "" }),
+    });
+  }
+
   async requestOTP(email, options = {}) {
     if (!email) {
       throw new Error("email is required");

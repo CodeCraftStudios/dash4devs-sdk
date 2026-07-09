@@ -1170,6 +1170,8 @@ declare class AuthModule {
    * @param email - Customer email address
    */
   requestOTP(email: string, options?: { accepts_marketing?: boolean; captcha_token?: string }): Promise<{ message: string; email: string }>;
+  /** Check whether a customer already exists for this org by email and/or phone. */
+  checkExists(params: { email?: string; phone?: string }): Promise<{ email_exists: boolean; phone_exists: boolean }>;
 
   /**
    * Verify OTP and get tokens.
