@@ -169,6 +169,9 @@ export interface Product {
    *  A freestyle bundle has multiple named slots; a choose bundle has exactly
    *  one slot whose options span a mixed pool of products. */
   freestyle_slots?: FreestyleSlot[] | null;
+  /** Labelled file attachments, sorted by `order`. Present on the product
+   *  detail payload; fetch by label via products.getFile(slug, label). */
+  files?: ProductFile[];
 }
 
 /**
@@ -223,6 +226,22 @@ export interface CategoryFile {
   /** Absolute URL to the file */
   url: string | null;
   /** Selector label (e.g. "menu", "coa") */
+  label: string;
+  /** Display name (defaults to the original filename) */
+  name: string;
+  order: number;
+}
+
+/**
+ * A labelled file attached to a PRODUCT (fetch via products.getFile/getFiles).
+ * Distinct from the per-variation files surfaced in `Product.lab_reports`:
+ * these hang off the product, so a product with no variations can carry them.
+ */
+export interface ProductFile {
+  id: string;
+  /** Absolute URL to the file */
+  url: string | null;
+  /** Selector label (e.g. "coa", "manual") */
   label: string;
   /** Display name (defaults to the original filename) */
   name: string;
@@ -761,6 +780,20 @@ declare class ProductsModule {
    * Get featured variations (variations with show_in_bg custom field)
    */
   getFeaturedVariations(): Promise<FeaturedVariationsResponse>;
+
+  /**
+   * Get the labelled file attachments for a product, sorted by `order`.
+   * @param slug - Product slug
+   * @param options.label - Only return files with this exact label
+   */
+  getFiles(slug: string, options?: { label?: string }): Promise<ProductFile[]>;
+
+  /**
+   * Get a single file from a product by label (lowest order wins, else null).
+   * @param slug - Product slug
+   * @param label - The file label to select
+   */
+  getFile(slug: string, label: string): Promise<ProductFile | null>;
 }
 
 declare class CategoriesModule {

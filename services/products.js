@@ -170,6 +170,50 @@ export class ProductsModule {
     const url = `${this.client.baseURL}/api/storefront/featured-variations`;
     return this.client._fetch(url);
   }
+
+  /**
+   * Get the labelled file attachments for a product.
+   * Files are managed per-product in the dashboard, each tagged with a `label`
+   * (e.g. "coa", "lab-report", "spec-sheet", "manual"). Returned already sorted
+   * by `order`.
+   *
+   * These hang off the product itself, so a product with no variations can
+   * still carry files — unlike the per-variation files exposed via
+   * `product.lab_reports`.
+   *
+   * @param {string} slug - Product slug
+   * @param {Object} [options]
+   * @param {string} [options.label] - Only return files with this exact label
+   * @returns {Promise<Array<{id: string, url: string, label: string, name: string, order: number}>>}
+   *
+   * @example
+   * const coas = await dash.products.getFiles("thca-pre-rolls-classic", { label: "coa" });
+   */
+  async getFiles(slug, options = {}) {
+    const res = await this.get(slug);
+    const files = (res && res.product && res.product.files) || [];
+    if (options.label != null && options.label !== "") {
+      return files.filter((f) => f.label === options.label);
+    }
+    return files;
+  }
+
+  /**
+   * Get a single file from a product by label. When multiple files share the
+   * label, the one with the lowest `order` is returned. Returns null if none.
+   *
+   * @param {string} slug - Product slug
+   * @param {string} label - The file label to select
+   * @returns {Promise<{id: string, url: string, label: string, name: string, order: number} | null>}
+   *
+   * @example
+   * const coa = await dash.products.getFile("thca-pre-rolls-classic", "coa");
+   * if (coa) window.open(coa.url);
+   */
+  async getFile(slug, label) {
+    const files = await this.getFiles(slug, { label });
+    return files.length ? files[0] : null;
+  }
 }
 
 export default ProductsModule;
