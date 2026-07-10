@@ -87,6 +87,36 @@ export class CartModule {
    * @param {number} quantity - New quantity (0 to remove)
    * @returns {Promise<Object>}
    */
+  /**
+   * Set the per-location quantity split for a multi-location wholesale order.
+   *
+   * The server derives each cart line's quantity from the sum across locations
+   * and stores the split on the cart, so the two can never disagree. Passing a
+   * location with no items removes it; passing a size that is no longer in any
+   * location removes that line.
+   *
+   * @param {Object} locations - {locationId: {label, state, items: {sizeId: qty}}}
+   * @returns {Promise<Object>} the full cart state, incl. custom_fields.locations
+   *
+   * @example
+   * await dash.cart.setLocations({
+   *   "loc-0": { label: "Houston", state: "TX", items: { [sizeId]: 12 } },
+   *   "loc-1": { label: "Dallas",  state: "TX", items: { [sizeId]: 6 } },
+   * });
+   */
+  async setLocations(locations) {
+    const url = `${this.client.baseURL}/api/storefront/cart/locations`;
+
+    const state = await this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ cart_id: this._cartId || undefined, locations }),
+    });
+
+    // The server creates the cart on first write; remember its id like add() does.
+    if (state && state.cart_id) this._cartId = state.cart_id;
+    return state;
+  }
+
   async update(sizeId, quantity) {
     if (!this._cartId) {
       throw new Error("No cart loaded");

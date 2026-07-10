@@ -967,6 +967,12 @@ declare class CartModule {
    * @param sizeId - Size ID of item to update
    * @param quantity - New quantity (0 to remove)
    */
+  /**
+   * Set the per-location quantity split for a multi-location wholesale order.
+   * The server derives each line's quantity from the sum across locations.
+   */
+  setLocations(locations: Record<string, { label?: string; state?: string; items: Record<string, number> }>): Promise<CartState>;
+
   update(sizeId: string, quantity: number): Promise<CartUpdateResponse>;
 
   /**
