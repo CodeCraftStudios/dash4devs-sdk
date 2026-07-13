@@ -30,7 +30,7 @@ import { printArt } from "../banner.js";
 import chalk from "chalk";
 import ora from "ora";
 
-const PKG_VERSION = "0.1.1";
+const PKG_VERSION = "0.1.17-alpha";
 
 export async function run(args) {
   const skipBuild = args.includes("--skip-build");
@@ -42,7 +42,25 @@ export async function run(args) {
 
   printArt();
 
-  const cfg = loadConfig();
+  // The CDN upload is an OPTIMISATION, not a build requirement. When this command
+  // is wired into package.json's "build" script it becomes the deploy's build
+  // step, so anything thrown here fails the whole deploy and takes the site with
+  // it. The classic case: CI (DigitalOcean) has no DEVDASH_SECRET_KEY, because
+  // .env.local is not committed — loadConfig() threw, the deploy went red, and the
+  // storefront never shipped at all. A missing key must degrade to a plain
+  // `next build`, never break the site.
+  let cfg;
+  try {
+    cfg = loadConfig();
+  } catch (e) {
+    warn(`CDN upload disabled: ${e.message}`);
+    warn("Falling back to a plain `next build` — the site will build and deploy,");
+    warn("it just serves its static assets from the origin instead of the edge.");
+    await runNextBuild(process.cwd());
+    success("Built (no CDN upload)");
+    return;
+  }
+
   const api = createApi(cfg);
 
   step("Auth", `key ${chalk.dim("····" + cfg.apiKey.slice(-4))} · ${cfg.apiUrl}`);
@@ -55,6 +73,18 @@ export async function run(args) {
     warn("Skipping build (--skip-build)");
   }
 
+  // Past this point the app has already built successfully. Everything below is
+  // the edge upload, and a failure there (API down, key rotated, upload 5xx) must
+  // not fail the deploy — the site is fine, it just serves assets from the origin.
+  try {
+    await uploadToEdge({ cfg, api, dryRun, noActivate, noMedia, noVideo, forceVideo });
+  } catch (e) {
+    warn(`CDN upload failed: ${e.message}`);
+    warn("The app built fine and will deploy — assets serve from the origin.");
+  }
+}
+
+async function uploadToEdge({ cfg, api, dryRun, noActivate, noMedia, noVideo, forceVideo }) {
   step("Hashing static files");
   const entries = await scanBuild(cfg);
   const totalBytes = entries.reduce((n, e) => n + e.size, 0);

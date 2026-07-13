@@ -48,7 +48,7 @@ import { CalendarModule } from "./services/calendar.js";
  * releases behind package.json (storefronts were advertising v0.1.4-alpha), so
  * it lives here as the single value to bump.
  */
-export const SDK_VERSION = "0.1.16-alpha";
+export const SDK_VERSION = "0.1.17-alpha";
 
 // =============================================================================
 // MAIN CLIENT
