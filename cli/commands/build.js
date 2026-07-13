@@ -30,7 +30,7 @@ import { printArt } from "../banner.js";
 import chalk from "chalk";
 import ora from "ora";
 
-const PKG_VERSION = "0.1.17-alpha";
+const PKG_VERSION = "0.1.18-alpha";
 
 export async function run(args) {
   const skipBuild = args.includes("--skip-build");
@@ -65,22 +65,66 @@ export async function run(args) {
 
   step("Auth", `key ${chalk.dim("····" + cfg.apiKey.slice(-4))} · ${cfg.apiUrl}`);
 
+  // Resolve the asset prefix BEFORE building.
+  //
+  // This used to be written to .env.production *after* `next build`, which meant
+  // the build never saw it — only the running server did, on its next render. The
+  // two then disagreed: the server emitted <script src="{CDN}/_next/..."> while
+  // the client bundle had been compiled with an empty asset base. Turbopack's
+  // chunks registered under CDN urls that its runtime never looked for, so the
+  // client entry silently never ran: every chunk 200s, no console error, and React
+  // simply never hydrates. Symptom is a page that renders but is frozen at its
+  // pre-animation state, with images stuck on their LQIP placeholders.
+  //
+  // The prefix is stable per org ({cdn}/cdn/orgs/{org_id}) and GET /cdn/status
+  // returns it without needing a prior deploy, so we can just ask up front and
+  // build with it baked in. Build-time and runtime then agree.
+  let assetPrefix = null;
+  if (!skipBuild) {
+    try {
+      const status = await api.status();
+      assetPrefix = status.asset_prefix || null;
+    } catch (e) {
+      warn(`Could not resolve the CDN asset prefix: ${e.message}`);
+      warn("Building without it — assets will serve from the origin.");
+    }
+  }
+
+  if (assetPrefix) {
+    writeAssetPrefix(cfg.cwd, assetPrefix);
+    step("Asset prefix", chalk.dim(assetPrefix));
+  }
+
   if (!skipBuild) {
     step("Building Next.js app");
-    await runNextBuild(cfg.cwd);
+    // NEXT_PUBLIC_ASSET_PREFIX is inlined into the client bundle at build time,
+    // so it has to be in the env of the build itself — .env.production alone is
+    // not enough if the file is written too late.
+    await runNextBuild(cfg.cwd, assetPrefix);
     success(`Built ${path.join(cfg.cwd, cfg.buildDir)}`);
   } else {
     warn("Skipping build (--skip-build)");
   }
 
-  // Past this point the app has already built successfully. Everything below is
-  // the edge upload, and a failure there (API down, key rotated, upload 5xx) must
-  // not fail the deploy — the site is fine, it just serves assets from the origin.
+  // The app has built. The edge upload below is an optimisation, and a failure
+  // there (API down, key rotated, upload 5xx) must not fail the deploy.
+  //
+  // But if we baked the CDN prefix into that build and the upload then fails, the
+  // built HTML points at chunks that aren't on the edge — a broken site, which is
+  // worse than no CDN at all. So in that case, rebuild without the prefix and let
+  // the origin serve the assets.
   try {
     await uploadToEdge({ cfg, api, dryRun, noActivate, noMedia, noVideo, forceVideo });
   } catch (e) {
     warn(`CDN upload failed: ${e.message}`);
-    warn("The app built fine and will deploy — assets serve from the origin.");
+    if (assetPrefix && !skipBuild) {
+      warn("That build references the edge, so rebuilding without the asset prefix.");
+      clearAssetPrefix(cfg.cwd);
+      await runNextBuild(cfg.cwd, null);
+      success("Rebuilt without CDN — assets serve from the origin.");
+    } else {
+      warn("The app built fine and will deploy — assets serve from the origin.");
+    }
   }
 }
 
@@ -176,14 +220,18 @@ async function uploadToEdge({ cfg, api, dryRun, noActivate, noMedia, noVideo, fo
   ]);
 }
 
-function runNextBuild(cwd) {
+function runNextBuild(cwd, assetPrefix) {
   return new Promise((resolve, reject) => {
     // shell: true is required on Windows so Node can resolve `.cmd` shims
     // (npx.cmd, next.cmd). Harmless on POSIX.
+    const env = { ...process.env };
+    if (assetPrefix) env.NEXT_PUBLIC_ASSET_PREFIX = assetPrefix;
+    else delete env.NEXT_PUBLIC_ASSET_PREFIX;
+
     const child = spawn("npx next build", {
       cwd,
       stdio: "inherit",
-      env: process.env,
+      env,
       shell: true,
     });
     child.on("exit", (code) => {
@@ -200,6 +248,20 @@ function readNextVersion(cwd) {
     return (pkg.dependencies && pkg.dependencies.next) || (pkg.devDependencies && pkg.devDependencies.next) || "";
   } catch {
     return "";
+  }
+}
+
+// Drop the prefix again — used when the build referenced the edge but the upload
+// failed, so the rebuilt app serves from the origin instead of 404-ing on chunks.
+function clearAssetPrefix(cwd) {
+  for (const name of [".env.production", ".env.local"]) {
+    const p = path.join(cwd, name);
+    if (!fs.existsSync(p)) continue;
+    const lines = fs
+      .readFileSync(p, "utf8")
+      .split(/\r?\n/)
+      .filter((l) => !l.startsWith("NEXT_PUBLIC_ASSET_PREFIX="));
+    fs.writeFileSync(p, lines.join("\n"));
   }
 }
 
