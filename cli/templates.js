@@ -57,8 +57,25 @@ export function buildFiles(ctx) {
 
   add(".gitignore", ["node_modules", ".next", ".env*.local", "*.tsbuildinfo", "next-env.d.ts", ""].join("\n"));
 
-  add("next.config.mjs", `/** @type {import('next').NextConfig} */
+  add("next.config.mjs", `import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Static chunks + CSS serve from the dash4devs CDN edge. \`dash4devs build\`
+  // resolves your org's (stable) prefix and exports it into the build, so it gets
+  // inlined into the client bundle — that matters: if the server renders CDN urls
+  // while the bundle was compiled without them, Turbopack's chunks never register
+  // and React silently never hydrates. Unset it stays undefined and the origin
+  // serves the assets, which is always safe.
+  assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || undefined,
+
+  // Pin the workspace root so Turbopack resolves modules from this project
+  // rather than a stray lockfile higher up the tree.
+  turbopack: { root: __dirname },
+
   images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },
 };
 export default nextConfig;
@@ -121,7 +138,20 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
 `);
 
   // ─── Root layout ────────────────────────────────────────────────────────--
-  add("app/layout.tsx", `import type { Metadata } from "next";
+  add("app/layout.tsx", `// Load webfonts from Google's CDN with a <link> in <head>, NOT via next/font.
+//
+// next/font self-hosts the .woff2 under /_next/static, which the CDN assetPrefix
+// points at DO Spaces, and it preloads the file with \`crossorigin\`. Spaces sends no
+// Access-Control-Allow-Origin, so the browser blocks that fetch outright and the
+// site silently falls back to system faces. Google's CDN is CORS-correct, so a
+// plain <link> keeps the fonts working while the app's chunks serve from the edge:
+//
+//   <link rel="preconnect" href="https://fonts.googleapis.com" />
+//   <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+//   <link href="https://fonts.googleapis.com/css2?family=Inter..." rel="stylesheet" />
+//
+// then expose the family as a CSS var on <html style={{ "--font-sans": "'Inter', ..." }}>.
+import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";

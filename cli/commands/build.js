@@ -30,7 +30,7 @@ import { printArt } from "../banner.js";
 import chalk from "chalk";
 import ora from "ora";
 
-const PKG_VERSION = "0.1.18-alpha";
+const PKG_VERSION = "0.1.19-alpha";
 
 export async function run(args) {
   const skipBuild = args.includes("--skip-build");
