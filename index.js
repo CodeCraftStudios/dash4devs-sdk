@@ -40,6 +40,16 @@ import { FormsModule } from "./services/forms.js";
 import { SurveyModule } from "./services/survey.js";
 import { CalendarModule } from "./services/calendar.js";
 
+/**
+ * Keep in sync with the `version` field in package.json.
+ *
+ * This drives the version shown in the "Powered by Dash4Devs" badge and in the
+ * startup table. It was previously inlined in the constructor and drifted eleven
+ * releases behind package.json (storefronts were advertising v0.1.4-alpha), so
+ * it lives here as the single value to bump.
+ */
+export const SDK_VERSION = "0.1.16-alpha";
+
 // =============================================================================
 // MAIN CLIENT
 // =============================================================================
@@ -92,7 +102,7 @@ export class DashClient {
     this.apiKey = apiKey;
     this.baseURL = baseURL.replace(/\/$/, ""); // Remove trailing slash
     this._sessionId = null;
-    this.version = "0.1.4-alpha";
+    this.version = SDK_VERSION;
 
     // Startup info table — prints once per process, not per DashClient instance
     // (Next.js SSR creates a new client per request/worker, which used to spam logs)
@@ -222,55 +232,71 @@ export class DashClient {
   }
 
   /**
-   * Inject "Powered by" branding into the footer
-   * For SSR frameworks (Next.js, etc.), include the Dash4DevsBranding component instead.
+   * Inject the "Powered by Dash4Devs" strip directly beneath the site's footer.
+   *
+   * Placement matters: this used to `document.body.appendChild(...)`, which only
+   * lands under the footer when <footer> happens to be the last thing in <body>.
+   * On storefronts that wrap the page in <main> (or lay <body> out with flex/grid,
+   * where DOM order is not paint order) the strip surfaced above the content
+   * instead. Anchoring to the footer's own parent — as its next sibling — puts the
+   * strip under whatever the footer is, in normal flow, on every layout.
+   *
    * @private
    */
   _injectFooterBranding() {
     // Wait for DOM and hydration to complete
     const inject = () => {
-      // Check if branding already exists (e.g., from SSR component)
+      // Already present (e.g. rendered server-side) — nothing to do.
       if (document.getElementById("dash4devs-branding")) {
         return;
       }
 
-      // Check for branding text to avoid duplicates with SSR-rendered branding
-      const footer = document.querySelector("footer");
+      // Anchor to the LAST footer on the page: a site may mark up more than one
+      // <footer> (e.g. a card footer), and the page's own is the final one.
+      const footers = document.querySelectorAll("footer");
+      const footer = footers[footers.length - 1];
       if (!footer) {
-        // Retry after a short delay if footer not found yet
+        // Footer may not have hydrated yet — retry shortly.
         setTimeout(inject, 500);
         return;
       }
 
-      // Check if branding already exists in footer (SSR-rendered)
-      if (document.getElementById("dash4devs-branding") ||
-          footer.innerHTML.includes("dashfordevs.com") ||
+      // Don't double up on an SSR-rendered credit.
+      if (footer.innerHTML.includes("dashfordevs.com") ||
           footer.innerHTML.includes("Powered by Dash4Devs")) {
-        return; // Branding already present, skip injection
+        return;
       }
 
-      // Create the branding element
       const brandingDiv = document.createElement("div");
       brandingDiv.id = "dash4devs-branding";
+      // `position: static` and no z-index: this is a normal-flow strip that sits
+      // after the footer. It must never float over the page or pin to the viewport.
       brandingDiv.style.cssText = `
-        position: relative;
-        z-index: 2147483647;
+        position: static;
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
         text-align: center;
         padding: 12px 16px;
+        margin: 0;
         font-size: 14px;
+        line-height: 1.4;
         color: #6b7280;
         background: #ffffff;
         border-top: 1px solid #e5e7eb;
       `;
 
+      // Attribute the referral back to the storefront that rendered the badge.
+      const href = this._brandingHref();
+
       brandingDiv.innerHTML = `
-        Powered by <a href="https://dashfordevs.com" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0369a1; text-decoration: none;">Dash4Devs</a>
+        Powered by <a href="${href}" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0369a1; text-decoration: none;">Dash4Devs</a>
         <span style="color: #4b5563; font-size: 11px; margin-left: 4px;">v${this.version}</span>
       `;
 
-      // Injected after all page content — the last element in <body>, in normal
-      // flow (not fixed), as a solid white strip above surrounding content.
-      document.body.appendChild(brandingDiv);
+      // Directly after the footer, inside the footer's own parent — so it lands
+      // under the footer whatever that parent happens to be (<body>, <main>, …).
+      footer.insertAdjacentElement("afterend", brandingDiv);
     };
 
     // Delay injection well past SSR hydration to prevent hydration mismatches.
@@ -286,6 +312,27 @@ export class DashClient {
         inject();
       }
     });
+  }
+
+  /**
+   * The badge's link, UTM-tagged with the storefront's own domain so referrals
+   * from each site are attributable in analytics (previously it was a bare
+   * https://dashfordevs.com, so every storefront's traffic looked identical).
+   *
+   *   https://dashfordevs.com/?utm_source=buds2godfw.com
+   *     &utm_medium=referral&utm_campaign=powered_by&utm_content=sdk-badge
+   *
+   * @private
+   */
+  _brandingHref() {
+    const url = new URL("https://dashfordevs.com/");
+    // hostname, not href: no paths or query strings from the host page leak out.
+    const host = (typeof location !== "undefined" && location.hostname) || "unknown";
+    url.searchParams.set("utm_source", host);
+    url.searchParams.set("utm_medium", "referral");
+    url.searchParams.set("utm_campaign", "powered_by");
+    url.searchParams.set("utm_content", "sdk-badge");
+    return url.toString();
   }
 
   /**
