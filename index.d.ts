@@ -114,6 +114,11 @@ export interface Product {
   /** SEO-specific slug (may differ from `slug` for canonical URL management) */
   seo_slug?: string | null;
   main_image: string | null;
+  /**
+   * The product's PRIMARY category — the one its canonical URL and breadcrumb
+   * are built from. A product can belong to several categories; use
+   * `categories` for the full set, and keep using this one for links.
+   */
   category: {
     id: string;
     name: string;
@@ -121,6 +126,20 @@ export interface Product {
     /** Parent category, present when this is a subcategory */
     parent?: { id: string; name: string; slug: string } | null;
   } | null;
+  /**
+   * Every category this product appears in — primary first, then any
+   * additional ones. A product with a single category yields a one-item array,
+   * so `product.categories[0]` and `product.category` agree.
+   *
+   * Build URLs from `category`, not from this: only the primary defines the
+   * canonical path.
+   */
+  categories?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    parent?: { id: string; name: string; slug: string } | null;
+  }>;
   price: string | null;
   discounted_price: string | null;
   in_stock: boolean;
@@ -346,7 +365,14 @@ export interface ProductsListOptions {
   limit?: number;
   /** Pagination offset (default: 0) */
   offset?: number;
-  /** Filter by category slug */
+  /**
+   * Filter by category slug. Comma-separate for several ("flower,deals"),
+   * which returns products in ANY of them.
+   *
+   * Matches a product's primary category and any additional categories it was
+   * assigned to, so a product listed under "deals" is returned here even when
+   * its primary category is "flower".
+   */
   category?: string;
   /** Filter by brand slug */
   brand?: string;
@@ -510,12 +536,20 @@ export interface ProductCoreResponse {
     reviews_count: number;
     /** Min/max effective price across all sizes */
     price_range: { min: string; max: string } | null;
+    /** Primary category — the canonical URL and breadcrumb are built from it. */
     category: {
       id: string;
       name: string;
       slug: string;
       parent: { id: string; name: string; slug: string } | null;
     } | null;
+    /** Every category this product appears in — primary first, then extras. */
+    categories?: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      parent?: { id: string; name: string; slug: string } | null;
+    }>;
     features: { key: string; value: string }[];
     qna: { question: string; answer: string }[];
     images: { id: string; url: string }[];

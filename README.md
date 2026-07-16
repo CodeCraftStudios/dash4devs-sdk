@@ -106,7 +106,7 @@ export default async function RootLayout({ children }) {
 const { products, pagination } = await dash.products.list({
   limit: 20,              // Products per page (max 100)
   offset: 0,              // Pagination offset
-  category: "electronics", // Filter by category slug
+  category: "electronics", // Filter by category slug ("a,b" for any of several)
   search: "laptop"        // Search in product name
 });
 
@@ -119,7 +119,8 @@ products.forEach(product => {
   console.log(product.discounted_price); // "79.99" or null
   console.log(product.main_image);      // "https://...image.jpg"
   console.log(product.in_stock);        // true/false
-  console.log(product.category);        // { id, name, slug }
+  console.log(product.category);        // PRIMARY category: { id, name, slug }
+  console.log(product.categories);      // ALL categories: [{ id, name, slug }, ...]
   console.log(product.description);     // "Product description..."
   console.log(product.attributes);      // [{ name, options: [...] }]
   console.log(product.features);        // [{ key, value }]
@@ -129,6 +130,35 @@ products.forEach(product => {
 // Get single product
 const { product } = await dash.products.get("product-slug");
 ```
+
+#### Products in more than one category
+
+A product has one **primary** category (`product.category`) and can be listed in
+any number of **additional** ones. `product.categories` is the full set, primary
+first — for a product with a single category it's just `[product.category]`.
+
+```javascript
+// Returns products whose PRIMARY category is "deals", plus products that merely
+// list "deals" as an additional category.
+const { products } = await dash.products.list({ category: "deals" });
+
+products.forEach(p => {
+  p.categories.map(c => c.slug);  // e.g. ["flower", "deals"]
+});
+```
+
+Only the primary category defines a product's canonical URL, so keep building
+links from `product.category` — never from the category you happened to fetch,
+and never from `categories[n]`:
+
+```javascript
+// Correct: canonical, and stable no matter which listing the card came from.
+const href = `/${product.category.slug}/${product.slug}`;
+```
+
+Assign additional categories in the dashboard under **Inventory → Products →
+(product) → Additional Categories**. Nothing changes for stores that don't use
+them: with no extras assigned, every response is identical to before.
 
 ### Categories
 
@@ -144,6 +174,11 @@ const { category } = await dash.categories.get("electronics", {
   includeProducts: true,
   limit: 20
 });
+
+// category.products.items includes products assigned to "electronics" as an
+// ADDITIONAL category, not just the ones whose primary it is. Each product's
+// own `.category` still points at its primary, which may be another category —
+// so build product links from `product.category`, not from the category here.
 ```
 
 ### SEO

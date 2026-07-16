@@ -14,7 +14,10 @@ export class ProductsModule {
    * @param {Object} options - Query options
    * @param {number} options.limit - Number of products per page (default: 20, max: 100)
    * @param {number} options.offset - Pagination offset (default: 0)
-   * @param {string} options.category - Filter by category slug
+   * @param {string} options.category - Filter by category slug. Comma-separate
+   *   for several ("flower,deals") to match ANY of them. Matches a product's
+   *   primary category and any additional categories it was assigned to, so a
+   *   product listed under "deals" is returned even if its primary is "flower".
    * @param {string} options.brand - Filter by brand slug
    * @param {string} options.search - Search in product name
    * @param {string[]} options.include - Include additional fields (e.g. ["main_size", "variations"])
@@ -35,6 +38,17 @@ export class ProductsModule {
    * const newArrivals = await client.products.list({
    *   customFields: { new_arrival: true },
    *   limit: 12
+   * });
+   *
+   * @example
+   * // Products in a category, including ones whose PRIMARY category is
+   * // something else but that were also assigned to "deals".
+   * const deals = await client.products.list({ category: "deals" });
+   *
+   * // Each product reports its full membership; `category` stays the primary,
+   * // so keep building URLs from that one.
+   * deals.products.forEach((p) => {
+   *   console.log(p.name, p.categories.map((c) => c.slug));
    * });
    */
   async list(options = {}) {

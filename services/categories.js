@@ -53,7 +53,14 @@ export class CategoriesModule {
   }
 
   /**
-   * Get a single category with its products
+   * Get a single category with its products.
+   *
+   * Returns every product in the category — both the ones whose primary
+   * category this is, and the ones that merely list it as an additional
+   * category. Each product's own `category` field still points at ITS primary,
+   * which may not be this category, so build product URLs from `product.category`
+   * rather than assuming the category you fetched.
+   *
    * @param {string} slug - Category slug
    * @param {Object} options - Query options
    * @param {boolean} options.includeProducts - Include products in response (default: true)
