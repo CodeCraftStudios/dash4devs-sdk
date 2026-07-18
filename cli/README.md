@@ -33,7 +33,7 @@ your laptop          api.dashfordevs.com           DO Spaces CDN
     │  7. asset_prefix URL    │                          │
     │ ◀────────────────────── │                          │
     │                         │                          │
-    │  8. write to .env.local │                          │
+    │  8. write .env.production                          │
     │                         │                          │
     visitors' browsers ──────────────────────────────────▶ (direct CDN hit)
 ```
@@ -98,8 +98,10 @@ export default nextConfig;
 ```
 
 That's it. `dash4devs build` writes `NEXT_PUBLIC_ASSET_PREFIX` into
-`.env.local` after every deploy, so Next picks up the CDN URL on the next
-build.
+`.env.production` after every deploy, so Next picks up the CDN URL on the next
+build. It deliberately does **not** write `.env.local` — `next dev` must never
+point at the CDN, since dev-mode chunks only exist on your machine. (If an
+older CLI left the var in `.env.local`, the next build strips it out.)
 
 ---
 
@@ -123,8 +125,11 @@ npx dash4devs build
 5. Uploads missing files in parallel (concurrency 8) directly to DO Spaces
 6. Confirms each upload with `api.dashfordevs.com/v1/cdn/uploaded`
 7. Calls `api.dashfordevs.com/v1/cdn/activate` — atomic pointer flip
-8. Writes `NEXT_PUBLIC_ASSET_PREFIX` into `.env.local`
-9. Prints a summary box
+8. Writes `NEXT_PUBLIC_ASSET_PREFIX` into `.env.production`
+9. Optimizes media: image WebP/LQIP variants are generated **server-side**;
+   videos are transcoded **locally** with ffmpeg and pushed to the CDN, so the
+   heavy work stays off the API and concurrent builds scale
+10. Prints a summary box
 
 **Flags**
 
@@ -133,10 +138,25 @@ npx dash4devs build
 | `--skip-build` | Don't run `next build`, use the existing `.next/` folder |
 | `--dry-run` | Go through the diff step, print what would change, upload nothing |
 | `--no-activate` | Upload files but don't flip the active pointer (useful for staging) |
+| `--no-video` | Skip the local ffmpeg video transcode. Images still get variants |
+| `--force-video` | Re-transcode videos even if a transcode already exists |
+| `--no-media` (`--no-images`) | Skip media optimization entirely (images and videos) |
+
+Video transcoding runs ffmpeg on your machine and is slow, so most projects
+ship with `--no-video` in their build script:
+
+```json
+"scripts": { "build": "npx dash4devs build --no-video" }
+```
 
 ### `dash4devs deploy`
 
 Alias for `dash4devs build`. Reads better in CI scripts.
+
+### `dash4devs init [dir]`
+
+Scaffolds a new Next.js storefront wired to the SDK, prompting for your API
+keys.
 
 ### `dash4devs status`
 
