@@ -242,3 +242,33 @@ export function useDashForm(
   slug: string,
   options?: UseDashFormOptions,
 ): UseDashFormResult;
+
+// ============================================================================
+// MaintenancePage
+// ============================================================================
+
+export interface MaintenancePageProps {
+  /** Small brand label above the title (ignored if `logoUrl` is set). */
+  brand?: string;
+  /** Headline. Defaults to "We'll be right back". */
+  title?: string;
+  /** Body copy. Falls back to a generic maintenance message. */
+  message?: string | null;
+  /** Optional "expected back" hint. */
+  until?: string | null;
+  /** Logo image URL shown above the title. */
+  logoUrl?: string | null;
+  /** Support mailto shown at the bottom. */
+  supportEmail?: string | null;
+  /** Accent color for the dot / brand / links. Defaults to indigo. */
+  accent?: string;
+  /** Auto-reload interval in seconds so visitors recover hands-free. 0 disables. Default 30. */
+  refreshSeconds?: number;
+}
+
+/**
+ * Self-contained "we'll be right back" page to render when checkHealth() returns
+ * `ok: false`. Inline-styled + server-renderable, so it works even if the CDN /
+ * stylesheets are down.
+ */
+export function MaintenancePage(props?: MaintenancePageProps): JSX.Element;

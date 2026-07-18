@@ -483,6 +483,97 @@ export class DashClient {
   }
 
   /**
+   * Probe the storefront API and decide whether to serve the site or a
+   * maintenance page. NEVER throws — a gate must not crash the page it guards.
+   *
+   * Unlike ping(), this does NOT go through _fetch: it won't trigger the
+   * is_locked redirect, won't be cached, and won't throw on a non-200. It's a
+   * pure, timeout-bounded health probe you can put at the top of a root layout.
+   *
+   *   ok: true   → serve the site normally
+   *   ok: false  → render <MaintenancePage/> (maintenance_mode is on, OR the
+   *                backend is unreachable / 5xx / timed out)
+   *
+   * A 4xx (bad key, wrong origin) is a *config* problem, not an outage, so it
+   * does NOT gate — you want that error visible, not hidden behind "be right
+   * back". Org lock is reported as `locked` but left to the existing _fetch
+   * redirect, so this doesn't change lock behavior.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.timeoutMs=2500] Abort the probe after this long.
+   * @returns {Promise<{ok:boolean, reachable:boolean, maintenance:boolean,
+   *   locked:boolean, reason:string|null, message:string|null, until:string|null}>}
+   */
+  async checkHealth({ timeoutMs = 2500 } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const down = (reason) => ({
+      ok: false,
+      reachable: reason.indexOf("http_") === 0,
+      maintenance: true,
+      locked: false,
+      reason,
+      message: null,
+      until: null,
+    });
+    try {
+      const res = await fetch(`${this.baseURL}/api/storefront/ping`, {
+        method: "GET",
+        headers: { "X-API-Key": this.apiKey },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+
+      // 5xx / gateway (502/503/504) → backend unhealthy → gate the site.
+      if (res.status >= 500) return down(`http_${res.status}`);
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        // reachable but no JSON — a proxy/config oddity, not an outage.
+      }
+
+      if (!res.ok || !data) {
+        return {
+          ok: true,
+          reachable: true,
+          maintenance: false,
+          locked: false,
+          reason: `http_${res.status}`,
+          message: null,
+          until: null,
+        };
+      }
+
+      const locked = data.organization?.is_locked === true;
+      // Tolerate either a nested maintenance object (enriched ping) or a bare
+      // maintenance_mode flag, and the "True" string quirk.
+      const m =
+        data.maintenance && typeof data.maintenance === "object" ? data.maintenance : {};
+      const inMaintenance =
+        m.enabled === true ||
+        m.enabled === "true" ||
+        data.maintenance === true ||
+        data.maintenance_mode === true;
+
+      return {
+        ok: !inMaintenance,
+        reachable: true,
+        maintenance: inMaintenance,
+        locked,
+        reason: inMaintenance ? "operator" : null,
+        message: m.message || null,
+        until: m.until || null,
+      };
+    } catch (err) {
+      return down(err && err.name === "AbortError" ? "timeout" : "unreachable");
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Get page data - convenience method for SSR/SSG
    * Fetches all configured data for a page in a single request.
    *

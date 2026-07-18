@@ -15,3 +15,4 @@ export { DashProvider, useDash } from "./DashProvider.jsx";
 export { DashImage, default as DashImageDefault } from "./DashImage.jsx";
 export { SignaturePad } from "./SignaturePad.jsx";
 export { useDashForm } from "./useDashForm.jsx";
+export { MaintenancePage, default as MaintenancePageDefault } from "./MaintenancePage.jsx";

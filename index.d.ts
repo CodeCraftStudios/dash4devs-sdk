@@ -3625,6 +3625,24 @@ export declare class ReferralsModule {
 // MAIN CLIENT
 // =============================================================================
 
+/** Result of DashClient.checkHealth(). `ok` is the one flag the gate acts on. */
+export interface HealthStatus {
+  /** true → serve the site; false → show the maintenance page. */
+  ok: boolean;
+  /** Did we get any response at all (vs. network error / timeout)? */
+  reachable: boolean;
+  /** Show a maintenance page (operator maintenance_mode OR backend down)? */
+  maintenance: boolean;
+  /** Org is locked (billing/suspension). Reported for info; lock still redirects via _fetch. */
+  locked: boolean;
+  /** "operator" | "timeout" | "unreachable" | "http_5xx" | null */
+  reason: string | null;
+  /** Operator-supplied maintenance message, when available. */
+  message: string | null;
+  /** Optional "expected back" hint. */
+  until: string | null;
+}
+
 export declare class DashClient {
   /**
    * Create a new DashClient instance
@@ -3780,6 +3798,12 @@ export declare class DashClient {
    * Health check - validates API key and returns organization info
    */
   ping(): Promise<PingResponse>;
+
+  /**
+   * Timeout-bounded health probe for a maintenance gate. Never throws. `ok:false`
+   * means show <MaintenancePage/> (maintenance_mode on, or backend down/5xx/timeout).
+   */
+  checkHealth(opts?: { timeoutMs?: number }): Promise<HealthStatus>;
 
   /**
    * Get page data - convenience method for SSR/SSG
