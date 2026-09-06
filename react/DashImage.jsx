@@ -46,6 +46,30 @@ export function DashImage(props) {
   var height = props.height;
   var loadingProp = props.loading;
 
+  // Everything the caller passed that this component does not name itself.
+  //
+  // The type declaration says DashImageProps extends ImgHTMLAttributes, so
+  // TypeScript accepts title, id, aria-*, data-*, crossOrigin, referrerPolicy
+  // and the rest. The implementation named thirteen props and dropped the
+  // remainder on the floor, which meant tsc actively told callers it was safe
+  // to pass an attribute that would silently vanish at runtime.
+  //
+  // That is worse than an undeclared prop: a fleet sweep converting raw <img>
+  // tags found an `aria-hidden="true"` that would have disappeared on
+  // conversion, taking a real accessibility marker with it, and a `title`
+  // tooltip that already had. Forwarding the rest makes the declaration true.
+  var OWN_PROPS = {
+    image: 1, alt: 1, sizes: 1, className: 1, style: 1, priority: 1,
+    noBlur: 1, fill: 1, onLoad: 1, onError: 1, src: 1, width: 1,
+    height: 1, loading: 1,
+  };
+  var passthrough = {};
+  for (var key in props) {
+    if (Object.prototype.hasOwnProperty.call(props, key) && !OWN_PROPS[key]) {
+      passthrough[key] = props[key];
+    }
+  }
+
   var _loaded = useState(false);
   var loaded = _loaded[0];
   var setLoaded = _loaded[1];
@@ -101,7 +125,10 @@ export function DashImage(props) {
     style
   );
 
-  return React.createElement("img", {
+  // `passthrough` is spread first on purpose: srcSet, sizes and the load
+  // handlers are what this component exists to compute, and a caller passing
+  // one of them by accident must not win over the variant pipeline.
+  return React.createElement("img", Object.assign({}, passthrough, {
     ref: imgRef,
     src: primarySrc,
     srcSet: webpSet,
@@ -116,7 +143,7 @@ export function DashImage(props) {
     onError: handleError,
     className: className,
     style: mergedStyle,
-  });
+  }));
 }
 
 export default DashImage;
