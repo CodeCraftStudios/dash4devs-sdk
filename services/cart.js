@@ -208,6 +208,42 @@ export class CartModule {
   }
 
   /**
+   * Remember what a guest has typed into the checkout form.
+   *
+   * Call this as the form is filled — on blur, or debounced on change — NOT on
+   * submit. The point is the person who fills half the form and leaves: until
+   * they submit there is no order and no customer, so everything they typed is
+   * gone, and that is the lead worth following up.
+   *
+   * Nothing is validated. Send whatever is in the field, half typed or not.
+   * Fields are independent: sending only { phone } leaves a stored email alone,
+   * and sending "" clears that one field.
+   *
+   * A no-op on a cart belonging to a signed-in customer — that cart already has
+   * a real record behind it.
+   *
+   * @param {Object} contact
+   * @param {string} [contact.email]
+   * @param {string} [contact.phone]
+   * @param {string} [contact.first_name]
+   * @param {string} [contact.last_name]
+   * @returns {Promise<{message: string, captured: boolean}>}
+   */
+  async setContact(contact = {}) {
+    if (!this._cartId) {
+      // Nothing has been added yet, so there is no cart to attach this to.
+      // Not an error: the checkout form can legitimately be open first.
+      return { message: "No cart yet", captured: false };
+    }
+
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/contact`;
+    return this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify(contact),
+    });
+  }
+
+  /**
    * Apply a discount code to the cart
    * @param {string} code - Discount code
    * @returns {Promise<{message: string, cart: Object}>}

@@ -43,12 +43,12 @@ import { CalendarModule } from "./services/calendar.js";
 /**
  * Keep in sync with the `version` field in package.json.
  *
- * This drives the version shown in the "Powered by Dash4Devs" badge and in the
+ * This drives the version shown in the "Powered by DashForDevs" badge and in
  * startup table. It was previously inlined in the constructor and drifted eleven
  * releases behind package.json (storefronts were advertising v0.1.4-alpha), so
  * it lives here as the single value to bump.
  */
-export const SDK_VERSION = "0.1.19-alpha";
+export const SDK_VERSION = "0.1.22-alpha";
 
 // =============================================================================
 // MAIN CLIENT
@@ -212,7 +212,7 @@ export class DashClient {
 
     console.log("");
     console.log("┌─────────────────────────────────────────────┐");
-    console.log(`│  Dash4Devs SDK v${this.version}                          │`);
+    console.log(`│  DashForDevs SDK v${this.version}                        │`);
     console.log("├──────────────────┬──────────────────────────┤");
     console.log(`│  Key Type        │  ${(keyType + " (" + env + ")").padEnd(24)} │`);
     console.log(`│  API Key         │  ${maskKey(this.apiKey).padEnd(24)} │`);
@@ -232,7 +232,24 @@ export class DashClient {
   }
 
   /**
-   * Inject the "Powered by Dash4Devs" strip directly beneath the site's footer.
+   * Inject the "Powered by DashForDevs" strip directly beneath the site's footer.
+   *
+   * The link is `rel="nofollow"` and must stay that way. An auto-injected,
+   * identical, followed footer link across every client site is precisely what
+   * Google's spam documentation calls a widget link scheme: it is the old
+   * WordPress-theme-credit and embedded-counter pattern, and its guidance on
+   * widget links is to nofollow them. Followed, these get devalued at best and
+   * earn dashfordevs.com a manual action at worst.
+   *
+   * Nothing of value is lost. What this badge is actually for is referral
+   * clicks, brand impressions and discovery by other store owners, and all
+   * three survive nofollow intact. The href is UTM-tagged per storefront, so
+   * the referral traffic is measurable in analytics, which is where the return
+   * on this badge was always going to show up.
+   *
+   * That matters more here than on a typical SDK: a large share of these
+   * storefronts are hemp and THCA sites, and a followed-link neighbourhood is
+   * something Google evaluates in both directions.
    *
    * Placement matters: this used to `document.body.appendChild(...)`, which only
    * lands under the footer when <footer> happens to be the last thing in <body>.
@@ -263,7 +280,8 @@ export class DashClient {
 
       // Don't double up on an SSR-rendered credit.
       if (footer.innerHTML.includes("dashfordevs.com") ||
-          footer.innerHTML.includes("Powered by Dash4Devs")) {
+          footer.innerHTML.includes("Powered by Dash4Devs") ||
+          footer.innerHTML.includes("Powered by DashForDevs")) {
         return;
       }
 
@@ -290,7 +308,7 @@ export class DashClient {
       const href = this._brandingHref();
 
       brandingDiv.innerHTML = `
-        Powered by <a href="${href}" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0369a1; text-decoration: none;">Dash4Devs</a>
+        Powered by <a href="${href}" target="_blank" rel="nofollow noopener noreferrer" style="font-weight: 600; color: #0369a1; text-decoration: none;">DashForDevs</a>
         <span style="color: #4b5563; font-size: 11px; margin-left: 4px;">v${this.version}</span>
       `;
 

@@ -2,7 +2,7 @@
  * Page Groups Module
  * ------------------------------------------------------------------
  * Public storefront access to dynamic content collections defined in
- * the Dash4Devs dashboard under "Page Groups" (e.g. Services, Industries,
+ * the DashForDevs dashboard under "Page Groups" (e.g. Services, Industries,
  * Locations, Team, FAQ, etc.).
  *
  * Each Page Group has a slug and a list of published items. Items carry a

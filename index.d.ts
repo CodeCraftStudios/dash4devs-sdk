@@ -1108,6 +1108,20 @@ declare class CartModule {
   /**
    * Apply a discount code to the cart.
    */
+  /**
+   * Remember what a guest typed into checkout, as they type it.
+   *
+   * Call on blur or debounced change, not on submit — the whole point is the
+   * person who fills half the form and leaves. Nothing is validated, fields are
+   * independent, and "" clears one field. A no-op once the cart is signed in.
+   */
+  setContact(contact: {
+    email?: string;
+    phone?: string;
+    first_name?: string;
+    last_name?: string;
+  }): Promise<{ message: string; captured: boolean }>;
+
   applyDiscount(code: string): Promise<{ message: string; cart: CartGetResponse }>;
 
   /**
