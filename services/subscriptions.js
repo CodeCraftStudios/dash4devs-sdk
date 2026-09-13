@@ -47,7 +47,7 @@ export class SubscriptionsModule {
    * Start a subscription.
    *
    * @param {Object} options
-   * @param {number} options.planId - ProductSubscriptionPlan id. Read it from
+   * @param {string} options.planId - ProductSubscriptionPlan id. Read it from
    *   `size.subscription_plans` on the product payload.
    * @param {string} options.paymentProfileId - A saved card. Required: there
    *   is nothing to charge future cycles against without one.
@@ -125,9 +125,9 @@ export class SubscriptionsModule {
    * The per-cycle amount is always recomputed from the new plan, so a switch
    * cannot leave the customer paying the old price.
    *
-   * @param {number} subscriptionId
+   * @param {string} subscriptionId
    * @param {Object} options
-   * @param {number} options.planId - The plan to move to.
+   * @param {string} options.planId - The plan to move to.
    * @param {number} [options.quantity] - Omit to keep the current quantity.
    * @param {boolean} [options.resetBillingDate=false] - By default the
    *   customer keeps their existing billing day, so switching cannot defer a

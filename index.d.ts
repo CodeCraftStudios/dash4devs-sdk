@@ -2895,7 +2895,8 @@ export interface EarnPointsCompleteResponse {
  * frequency means moving to a different plan.
  */
 export interface ProductSubscriptionPlan {
-  id: number;
+  /** Prefixed, e.g. `subplan__Z6_LRqxQrBWbLgPR`. Never a number. */
+  id: string;
   name: string;
   interval_length: number;
   interval_unit: "days" | "months";
@@ -2907,8 +2908,9 @@ export interface ProductSubscriptionPlan {
 }
 
 export interface CustomerSubscription {
-  id: number;
-  plan_id: number | null;
+  /** Prefixed, e.g. `sub__aB3xK9pQrS2tUv`. Never a number. */
+  id: string;
+  plan_id: string | null;
   plan_name: string;
   plan: ProductSubscriptionPlan | null;
   product: { id: string; name: string; slug: string } | null;
@@ -2937,7 +2939,7 @@ export interface SubscriptionListResponse {
 
 export interface CreateSubscriptionOptions {
   /** From `size.subscription_plans` on the product payload. */
-  planId: number;
+  planId: string;
   /** A saved card. Subscribing is an account flow, not a cart flow. */
   paymentProfileId: string;
   quantity?: number;
@@ -2945,7 +2947,7 @@ export interface CreateSubscriptionOptions {
 }
 
 export interface ChangeSubscriptionPlanOptions {
-  planId: number;
+  planId: string;
   /** Omit to keep the current quantity. */
   quantity?: number;
   /**
@@ -2970,23 +2972,23 @@ export declare class SubscriptionsModule {
   create(options: CreateSubscriptionOptions): Promise<SubscriptionResponse>;
 
   /** Cancel for good. Terminal: `resume` will not bring it back. */
-  cancel(subscriptionId: number): Promise<SubscriptionResponse>;
+  cancel(subscriptionId: string): Promise<SubscriptionResponse>;
 
   /** Pause billing, keeping the billing day for when it resumes. */
-  pause(subscriptionId: number): Promise<SubscriptionResponse>;
+  pause(subscriptionId: string): Promise<SubscriptionResponse>;
 
   /** Restart a paused subscription, skipping any date that has passed. */
-  resume(subscriptionId: number): Promise<SubscriptionResponse>;
+  resume(subscriptionId: string): Promise<SubscriptionResponse>;
 
   /** Point future charges at a different saved card. */
   updatePayment(
-    subscriptionId: number,
+    subscriptionId: string,
     paymentProfileId: string
   ): Promise<SubscriptionResponse>;
 
   /** Change size, frequency or quantity by moving to another plan. */
   changePlan(
-    subscriptionId: number,
+    subscriptionId: string,
     options: ChangeSubscriptionPlanOptions
   ): Promise<SubscriptionResponse>;
 }
