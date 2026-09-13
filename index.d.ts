@@ -2889,6 +2889,108 @@ export interface EarnPointsCompleteResponse {
   points_remaining: number;
 }
 
+
+/**
+ * A plan is one ProductSize on one schedule at one discount. Changing size or
+ * frequency means moving to a different plan.
+ */
+export interface ProductSubscriptionPlan {
+  id: number;
+  name: string;
+  interval_length: number;
+  interval_unit: "days" | "months";
+  /** Percent off the size price, as a decimal string (e.g. "15.00"). */
+  discount_percent: string;
+  /** Perk lines to show on the storefront. */
+  features: string[];
+  is_active?: boolean;
+}
+
+export interface CustomerSubscription {
+  id: number;
+  plan_id: number | null;
+  plan_name: string;
+  plan: ProductSubscriptionPlan | null;
+  product: { id: string; name: string; slug: string } | null;
+  size: { id: string; label: string } | null;
+  payment_profile_id: string | null;
+  /** Only set for legacy ARB-backed subscriptions; empty for platform-billed ones. */
+  authorize_subscription_id: string;
+  status: "active" | "suspended" | "cancelled" | "expired" | "terminated";
+  /** Per-cycle charge, as a decimal string. */
+  amount: string;
+  quantity: number;
+  start_date: string | null;
+  next_billing_date: string | null;
+  billing_cycles_completed: number;
+  shipping_address: Record<string, any>;
+  created_at: string | null;
+}
+
+export interface SubscriptionResponse {
+  subscription: CustomerSubscription;
+}
+
+export interface SubscriptionListResponse {
+  subscriptions: CustomerSubscription[];
+}
+
+export interface CreateSubscriptionOptions {
+  /** From `size.subscription_plans` on the product payload. */
+  planId: number;
+  /** A saved card. Subscribing is an account flow, not a cart flow. */
+  paymentProfileId: string;
+  quantity?: number;
+  shippingAddress?: Record<string, any>;
+}
+
+export interface ChangeSubscriptionPlanOptions {
+  planId: number;
+  /** Omit to keep the current quantity. */
+  quantity?: number;
+  /**
+   * Default false: the customer keeps their existing billing day, so a switch
+   * cannot defer a charge that is already due. True restarts the clock from
+   * today on the new interval.
+   */
+  resetBillingDate?: boolean;
+}
+
+/**
+ * A customer's product subscriptions. Billed by the platform against a saved
+ * payment profile, not by Authorize.net ARB.
+ */
+export declare class SubscriptionsModule {
+  constructor(client: DashClient);
+
+  /** Every subscription for the signed-in customer, newest first. */
+  list(): Promise<SubscriptionListResponse>;
+
+  /** Start a subscription. Requires a signed-in customer and a saved card. */
+  create(options: CreateSubscriptionOptions): Promise<SubscriptionResponse>;
+
+  /** Cancel for good. Terminal: `resume` will not bring it back. */
+  cancel(subscriptionId: number): Promise<SubscriptionResponse>;
+
+  /** Pause billing, keeping the billing day for when it resumes. */
+  pause(subscriptionId: number): Promise<SubscriptionResponse>;
+
+  /** Restart a paused subscription, skipping any date that has passed. */
+  resume(subscriptionId: number): Promise<SubscriptionResponse>;
+
+  /** Point future charges at a different saved card. */
+  updatePayment(
+    subscriptionId: number,
+    paymentProfileId: string
+  ): Promise<SubscriptionResponse>;
+
+  /** Change size, frequency or quantity by moving to another plan. */
+  changePlan(
+    subscriptionId: number,
+    options: ChangeSubscriptionPlanOptions
+  ): Promise<SubscriptionResponse>;
+}
+
 export declare class EarnPointsModule {
   constructor(client: DashClient);
 
@@ -3771,6 +3873,9 @@ export declare class DashClient {
 
   /** Earn Points (social task completion for loyalty points) */
   readonly earnPoints: EarnPointsModule;
+
+  /** Product subscriptions (recurring deliveries of a ProductSize) */
+  readonly subscriptions: SubscriptionsModule;
 
   /**
    * Forms API — dashboard-built intake / contact / lead-capture / signed

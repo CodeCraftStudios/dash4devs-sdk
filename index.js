@@ -32,6 +32,7 @@ import { HtmlTemplatesModule } from "./services/html-templates.js";
 import { ReferralsModule } from "./services/referrals.js";
 import { DiscountStoreModule } from "./services/discount-store.js";
 import { EarnPointsModule } from "./services/earn-points.js";
+import { SubscriptionsModule } from "./services/subscriptions.js";
 import { SitemapModule } from "./services/sitemap.js";
 import { AdminModule } from "./services/admin.js";
 import { ContentTypesModule } from "./services/content-types.js";
@@ -135,6 +136,7 @@ export class DashClient {
     this.referrals = new ReferralsModule(this);
     this.discountStore = new DiscountStoreModule(this);
     this.earnPoints = new EarnPointsModule(this);
+    this.subscriptions = new SubscriptionsModule(this);
     this.sitemap = new SitemapModule(this);
     this.calendar = new CalendarModule(this);
 
