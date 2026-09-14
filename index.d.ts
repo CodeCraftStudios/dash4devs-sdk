@@ -344,6 +344,38 @@ export interface CartItem {
     discount_percent: string;
   } | null;
   is_subscription?: boolean;
+  /**
+   * What this line could be changed to, for `changeItem`.
+   *
+   * Only present on subscription lines: a one-off is edited by going back
+   * to the product page, and sending a whole grid for every line of every
+   * cart would be weight almost nobody uses.
+   *
+   * `strength` is the attribute option (null on a product with no
+   * attribute) and `pack` is the size label, so a drawer can render one
+   * selector or two without parsing a combined string. A size with an
+   * empty `plans` is a real destination: landing there makes the line a
+   * one-off.
+   */
+  change_options?: {
+    sizes: {
+      size_id: string;
+      label: string;
+      strength: string | null;
+      pack: string;
+      price: string;
+      in_stock: boolean;
+      plans: {
+        plan_id: string;
+        interval_length: number;
+        interval_unit: string;
+        /** "Every 4 weeks". */
+        label: string;
+        discount_percent: string;
+        price: string | null;
+      }[];
+    }[];
+  } | null;
   cannabinoid_type: string;
   /** Dynamic tax class slug (replaces cannabinoid_type) */
   tax_class?: string;
@@ -1056,6 +1088,33 @@ declare class CartModule {
     sizeId: string | null,
     quantity: number,
     options?: { itemId?: string }
+  ): Promise<CartUpdateResponse>;
+
+  /**
+   * Move one cart line to a different size, cadence, or both.
+   *
+   * Distinct from `update`, which is quantity-by-size. This is "make this
+   * line a different thing", for a cart drawer that edits a subscription in
+   * place: strength, pack and frequency as dropdowns on the line somebody
+   * is already looking at.
+   *
+   * An edit, not a remove and re-add, so the line keeps its id, its
+   * position and its quantity, in one request rather than two.
+   *
+   * `sizeId` and `subscriptionPlanId` are independent; pass either or both.
+   * Moving the size alone carries the cadence to the equivalent cell on the
+   * new size. `subscriptionPlanId: ""` turns the line into a one-off.
+   *
+   * The dropdown options come from the line: a subscription line carries
+   * `change_options.sizes`, each with `strength`, `pack` and its `plans`.
+   */
+  changeItem(
+    itemId: string,
+    changes?: {
+      sizeId?: string
+      subscriptionPlanId?: string
+      quantity?: number
+    }
   ): Promise<CartUpdateResponse>;
 
   /**

@@ -133,6 +133,65 @@ export class CartModule {
   }
 
   /**
+   * Move one cart line to a different size, cadence, or both.
+   *
+   * Distinct from `update`, which is quantity-by-size. This is "make this
+   * line a different thing", and it exists for a cart drawer that edits a
+   * subscription in place: strength, pack and frequency as dropdowns on the
+   * line somebody is already looking at.
+   *
+   * It is an edit, not a remove and re-add, so the line keeps its id, its
+   * position and its quantity, and it is one request rather than two where
+   * a half-failure leaves the customer with nothing.
+   *
+   * `sizeId` and `subscriptionPlanId` are independent. Pass either, or
+   * both. Moving the size alone carries the cadence to the equivalent cell
+   * on the new size. Pass `subscriptionPlanId: ""` to turn the line into a
+   * one-off.
+   *
+   * The options for the dropdowns come from the line itself: a subscription
+   * line carries `change_options.sizes`, each with `strength`, `pack` and
+   * its live `plans`.
+   *
+   * @param {string} itemId - The exact cart line
+   * @param {Object} [changes]
+   * @param {string} [changes.sizeId] - Another size of the SAME product
+   * @param {string} [changes.subscriptionPlanId] - A cell on the landing size, or "" for one-off
+   * @param {number} [changes.quantity]
+   * @returns {Promise<Object>}
+   */
+  async changeItem(itemId, changes = {}) {
+    if (!this._cartId) {
+      throw new Error("No cart loaded");
+    }
+    if (!itemId) {
+      throw new Error("itemId is required");
+    }
+
+    const { sizeId, subscriptionPlanId, quantity } = changes;
+
+    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/change`;
+    const body = { item_id: itemId };
+    if (sizeId) body.size_id = sizeId;
+    // Not a truthiness check: "" is meaningful here and means one-off,
+    // which is a different instruction from leaving the cadence alone.
+    if (subscriptionPlanId !== undefined) {
+      body.subscription_plan_id = subscriptionPlanId;
+    }
+    if (quantity !== undefined) body.quantity = quantity;
+
+    const response = await this.client._fetch(url, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    // Sync local state, the same way update() does.
+    await this.get();
+
+    return response;
+  }
+
+  /**
    * Update item quantity in cart.
    *
    * A size id no longer identifies a line on its own: the same size can sit
