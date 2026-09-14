@@ -1049,6 +1049,32 @@ declare class MarketingModule {
   }): void;
 }
 
+/**
+ * The cards a signed-in customer has saved.
+ *
+ * Nothing here creates one: a card is saved during checkout by the
+ * processor's own tokenizer, so card data never reaches this SDK. This
+ * lists what is already there, removes one, or moves the default.
+ *
+ * `profile_id` is the processor's handle for the record, not an id of ours.
+ * Every call needs a Bearer token, because a payment method belongs to a
+ * person rather than to an organization.
+ */
+declare class PaymentMethodsModule {
+  list(): Promise<{
+    payment_methods: {
+      profile_id: number
+      card_type: string
+      last_four: string
+      expiry: string
+      is_default: boolean
+    }[]
+  }>;
+  /** Forget a card. The server decides whether a subscription blocks it. */
+  remove(profileId: number | string): Promise<{ success?: boolean; message?: string }>;
+  setDefault(profileId: number | string): Promise<{ success?: boolean; message?: string }>;
+}
+
 declare class CartModule {
   /** Current cart ID */
   readonly cartId: string | null;
@@ -3931,6 +3957,7 @@ export declare class DashClient {
 
   /** Referral program — validate referral secrets, dashboard */
   readonly referrals: ReferralsModule;
+  readonly paymentMethods: PaymentMethodsModule;
 
   /** File upload utility (contact form attachments, review media) */
   readonly upload: {
