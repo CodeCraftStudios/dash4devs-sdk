@@ -395,10 +395,29 @@ export interface ProductsListOptions {
   /** Filter by custom fields (e.g. {popular: true, homepage_section: "hero"}) */
   customFields?: Record<string, string | number | boolean>;
   /**
-   * Comma-separated list of related resources to inline in each product object.
-   * Supported values depend on the backend version (e.g. "variations", "sizes").
+   * Related resources to inline in each product object, e.g.
+   * `["variations"]`, which adds `selectable_variations`: every attribute
+   * option with its sizes, their prices, bulk tiers and subscription cells.
+   *
+   * A bare list read returns `main_size` and nothing else, so a storefront
+   * that renders a size or strength selector on a grid card needs this.
+   * Served by the slim, prefetch-only serializer and cached per catalog view
+   * on the backend.
+   *
+   * This was missing from the type while `products.list` had supported it
+   * since the beginning, which made the whole listing variation payload
+   * unreachable from TypeScript.
    */
-  expand?: string;
+  include?: string[];
+  /**
+   * Whether to expand per-variation products into one card each.
+   *
+   * A different axis from `include`, and a different query parameter:
+   * `include` adds fields to a product's payload, `expand` changes how many
+   * products come back. Defaults to true on the backend; pass false to get
+   * one card per product.
+   */
+  expand?: boolean;
 }
 
 export interface ReviewMedia {
