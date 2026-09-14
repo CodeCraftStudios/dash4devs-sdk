@@ -330,6 +330,20 @@ export interface CartItem {
   quantity: number;
   unit_price: string;
   total_price: string;
+  /**
+   * Set when this line starts a recurring order rather than shipping once.
+   * Null on a normal purchase.
+   */
+  subscription?: {
+    plan_id: string;
+    subscription_id: string;
+    interval_length: number;
+    interval_unit: string;
+    /** "Every 4 weeks". */
+    label: string;
+    discount_percent: string;
+  } | null;
+  is_subscription?: boolean;
   cannabinoid_type: string;
   /** Dynamic tax class slug (replaces cannabinoid_type) */
   tax_class?: string;
@@ -495,6 +509,12 @@ export interface CartAddOptions {
   quantity?: number;
   /** Freestyle bundle selections (slot_id + option_id pairs) */
   freestyleSelections?: { slot_id: string; option_id: string }[];
+  /**
+   * Start a subscription instead of buying once. Read the id from
+   * `size.subscription_plans` on the product payload; it already implies the
+   * size and the cadence.
+   */
+  subscriptionPlanId?: string;
 }
 
 // =============================================================================
@@ -997,17 +1017,27 @@ declare class CartModule {
   add(options: CartAddOptions): Promise<CartAddResponse>;
 
   /**
-   * Update item quantity in cart
-   * @param sizeId - Size ID of item to update
-   * @param quantity - New quantity (0 to remove)
-   */
-  /**
    * Set the per-location quantity split for a multi-location wholesale order.
    * The server derives each line's quantity from the sum across locations.
    */
   setLocations(locations: Record<string, { label?: string; state?: string; items: Record<string, number> }>): Promise<CartState>;
 
-  update(sizeId: string, quantity: number): Promise<CartUpdateResponse>;
+  /**
+   * Update item quantity in cart.
+   *
+   * A size id does not identify a line on its own once a cart can hold
+   * subscriptions: the same size can sit in it once outright and again at
+   * two cadences. Pass `{ itemId }` from the cart line to address one
+   * exactly; without it only the one-off line for that size is reached.
+   *
+   * @param sizeId - Size ID of item to update, or null when using itemId
+   * @param quantity - New quantity (0 to remove)
+   */
+  update(
+    sizeId: string | null,
+    quantity: number,
+    options?: { itemId?: string }
+  ): Promise<CartUpdateResponse>;
 
   /**
    * Get cart contents from server
@@ -1015,10 +1045,13 @@ declare class CartModule {
   get(): Promise<CartGetResponse>;
 
   /**
-   * Remove item from cart
-   * @param sizeId - Size ID of item to remove
+   * Remove item from cart. See `update` for why `itemId` exists.
+   * @param sizeId - Size ID of item to remove, or null when using itemId
    */
-  remove(sizeId: string): Promise<CartRemoveResponse>;
+  remove(
+    sizeId: string | null,
+    options?: { itemId?: string }
+  ): Promise<CartRemoveResponse>;
 
   /**
    * Clear all items from cart

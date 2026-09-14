@@ -42,15 +42,33 @@ export class CartModule {
   }
 
   /**
-   * Add item to cart
+   * Add item to cart.
+   *
+   * Pass `subscriptionPlanId` and the line starts a recurring order instead
+   * of shipping once. The plan id is a cell of the product's subscription
+   * grid, read from `size.subscription_plans` on the product payload, and it
+   * already implies the size and the cadence.
+   *
+   * A subscription line never merges with a one-off line for the same size,
+   * and two cadences of the same size stay separate: buying one today and
+   * having one arrive fortnightly are two different things to have asked
+   * for. The same cadence does merge, as one subscription with more in it.
+   *
    * @param {Object} options - Item options
    * @param {string} options.productId - Product ID
    * @param {string} options.sizeId - Size ID
-   * @param {number} options.quantity - Quantity (default: 1)
+   * @param {number} [options.quantity=1] - Quantity
+   * @param {string} [options.subscriptionPlanId] - Grid cell to subscribe to
    * @returns {Promise<{cart_id: string, item: Object}>}
    */
   async add(options) {
-    const { productId, sizeId, quantity = 1, freestyleSelections } = options;
+    const {
+      productId,
+      sizeId,
+      quantity = 1,
+      freestyleSelections,
+      subscriptionPlanId,
+    } = options;
 
     if (!productId || !sizeId) {
       throw new Error("productId and sizeId are required");
@@ -64,6 +82,9 @@ export class CartModule {
     };
     if (freestyleSelections) {
       body.freestyle_selections = freestyleSelections;
+    }
+    if (subscriptionPlanId) {
+      body.subscription_plan_id = subscriptionPlanId;
     }
 
     const url = `${this.client.baseURL}/api/storefront/cart/add`;
@@ -81,12 +102,6 @@ export class CartModule {
     return response;
   }
 
-  /**
-   * Update item quantity in cart
-   * @param {string} sizeId - Size ID of item to update
-   * @param {number} quantity - New quantity (0 to remove)
-   * @returns {Promise<Object>}
-   */
   /**
    * Set the per-location quantity split for a multi-location wholesale order.
    *
@@ -117,18 +132,38 @@ export class CartModule {
     return state;
   }
 
-  async update(sizeId, quantity) {
+  /**
+   * Update item quantity in cart.
+   *
+   * A size id no longer identifies a line on its own: the same size can sit
+   * in the cart once outright and again at two subscription cadences. Pass
+   * `{ itemId }` from the cart line to address one exactly. Without it, only
+   * the one-off line for that size is reached.
+   *
+   * @param {string|null} sizeId - Size ID of item to update
+   * @param {number} quantity - New quantity (0 to remove)
+   * @param {Object} [options]
+   * @param {string} [options.itemId] - The exact cart line
+   * @returns {Promise<Object>}
+   */
+  async update(sizeId, quantity, options = {}) {
     if (!this._cartId) {
       throw new Error("No cart loaded");
     }
 
+    const { itemId } = options;
+    if (!sizeId && !itemId) {
+      throw new Error("sizeId or itemId is required");
+    }
+
     const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/update`;
+    const body = { quantity };
+    if (sizeId) body.size_id = sizeId;
+    if (itemId) body.item_id = itemId;
+
     const response = await this.client._fetch(url, {
       method: "POST",
-      body: JSON.stringify({
-        size_id: sizeId,
-        quantity,
-      }),
+      body: JSON.stringify(body),
     });
 
     // Sync local state
@@ -158,26 +193,43 @@ export class CartModule {
   }
 
   /**
-   * Remove item from cart
-   * @param {string} sizeId - Size ID of item to remove
+   * Remove item from cart.
+   *
+   * Pass `{ itemId }` to remove one exact line. See `update` for why a size
+   * id is not enough once a cart can hold subscriptions.
+   *
+   * @param {string|null} sizeId - Size ID of item to remove
+   * @param {Object} [options]
+   * @param {string} [options.itemId] - The exact cart line
    * @returns {Promise<Object>}
    */
-  async remove(sizeId) {
+  async remove(sizeId, options = {}) {
     if (!this._cartId) {
       throw new Error("No cart loaded");
     }
 
-    const url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/remove/${encodeURIComponent(sizeId)}`;
+    const { itemId } = options;
+    if (!sizeId && !itemId) {
+      throw new Error("sizeId or itemId is required");
+    }
+
+    let url = `${this.client.baseURL}/api/storefront/cart/${this._cartId}/remove/${encodeURIComponent(sizeId || itemId)}`;
+    if (itemId) url += `?item_id=${encodeURIComponent(itemId)}`;
+
     const response = await this.client._fetch(url, {
       method: "DELETE",
     });
 
-    // Update local state from response
-    if (response.cart) {
-      this._items = response.cart.items || [];
-      this._subtotal = response.cart.subtotal || "0.00";
-      this._itemCount = response.cart.item_count || 0;
-    }
+    /*
+      Re-read rather than trusting the response.
+
+      This endpoint nests the cart one level down as `response.cart`, unlike
+      add and update, so reading it here meant every caller had to know which
+      shape each method returned. Worse, a caller that guessed wrong got an
+      empty items array and blanked its own basket. One get() and the local
+      state is right whatever the endpoint happens to return.
+    */
+    await this.get();
 
     return response;
   }
