@@ -1,4 +1,53 @@
 // ============================================================================
+// Loyalty Utilities
+// ============================================================================
+
+/** The `balance` object returned beside any loyalty figure. */
+export interface LoyaltyBalance {
+  points: number;
+  display_mode: "points" | "cashback";
+  points_per_currency_unit: number | null;
+  currency: string;
+  cash_value: string | null;
+}
+
+export interface FormatLoyaltyOptions {
+  locale?: string;
+  /** Plural noun for points. Default "points". */
+  pointsLabel?: string;
+  /** Singular. Default "point". */
+  pointLabel?: string;
+}
+
+/**
+ * Format a balance the way the merchant asked for it: money in
+ * cashback mode, points otherwise. Returns "" for a null balance.
+ *
+ * Nothing here converts. `cash_value` is computed and floored on the
+ * server; if it is missing this falls back to points rather than
+ * doing the arithmetic, because a balance the client worked out can
+ * disagree with the one being spent.
+ */
+export declare function formatLoyaltyBalance(
+  balance: LoyaltyBalance | null | undefined,
+  options?: FormatLoyaltyOptions,
+): string;
+
+/** Whether this tenant talks in money, rate included and usable. */
+export declare function showsCashBack(
+  balance: LoyaltyBalance | null | undefined,
+): boolean;
+
+/**
+ * An earn rate of N points per currency unit, as a percentage. Null
+ * when either number is missing or zero.
+ */
+export declare function earnRatePercent(
+  pointsPerProductUnit: number,
+  balance: LoyaltyBalance | null | undefined,
+): number | null;
+
+// ============================================================================
 // Price Utilities
 // ============================================================================
 

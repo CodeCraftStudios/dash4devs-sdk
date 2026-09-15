@@ -10,6 +10,12 @@ export {
 } from "./price.js";
 
 export {
+  formatLoyaltyBalance,
+  showsCashBack,
+  earnRatePercent,
+} from "./loyalty.js";
+
+export {
   calculateBulkDiscount,
   getNextDiscountTier,
   getDiscountTiersSummary,

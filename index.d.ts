@@ -800,6 +800,34 @@ export interface GlobalData {
   /** Currency code (ISO 4217, e.g., "USD") */
   currency: string;
 
+  // Loyalty presentation
+  /**
+   * How a loyalty balance should be SHOWN to customers.
+   *
+   * The ledger is points either way: `Customer.points` is the unit of
+   * record, earning is points per dollar on the product, and the
+   * discount store is priced in points. This only decides whether a
+   * storefront prints "1,250 points" or "$12.50".
+   *
+   * Branch on it rather than assuming. A storefront that hardcodes one
+   * presentation goes wrong the day a merchant flips the switch.
+   */
+  loyalty_display_mode?: "points" | "cashback" | null;
+  /**
+   * Points equal to one unit of `currency`, e.g. 100 means 100 points
+   * to the dollar.
+   *
+   * ONLY SENT IN CASHBACK MODE, and null otherwise, so a storefront
+   * cannot quietly convert a balance the merchant asked to be shown as
+   * points. Never divide by this without checking it: it is a divisor
+   * and the API is entitled to send null.
+   *
+   * Prefer the server's own `cash_value` where one is offered. This is
+   * for formatting copy such as "5 points per dollar", not for working
+   * out what somebody's balance is worth.
+   */
+  points_per_currency_unit?: number | null;
+
   /** Additional global data sources (nav_categories, etc.) */
   [key: string]: any;
 }
@@ -2969,6 +2997,34 @@ export declare class EmailModule {
 // DISCOUNT STORE TYPES
 // =============================================================================
 
+/**
+ * A loyalty balance, in both units, with the merchant's preference.
+ *
+ * BOTH NUMBERS ARE ALWAYS SENT. A client given only the cash figure
+ * cannot render points if the tenant switches; a client given only
+ * points has to know the rate to render money, which puts the
+ * arithmetic back in the browser. The server sends both and says which
+ * to lead on.
+ *
+ * `cash_value` is a decimal STRING, like every other money field in
+ * this API, because a float cannot hold 12.50 exactly and a balance is
+ * not the place to find that out. It is null when the merchant's rate
+ * is unusable, in which case show the points and say nothing about
+ * money.
+ */
+export interface LoyaltyBalance {
+  /** The ledger value. Always present, always authoritative. */
+  points: number;
+  /** What the merchant wants shown. */
+  display_mode: "points" | "cashback";
+  /** Points to one unit of currency, or null if not configured. */
+  points_per_currency_unit: number | null;
+  /** ISO 4217, matching the org. */
+  currency: string;
+  /** `points` as money, floored to the cent. Null if not convertible. */
+  cash_value: string | null;
+}
+
 export interface DiscountStoreProduct {
   id: string;
   title: string;
@@ -2978,12 +3034,30 @@ export interface DiscountStoreProduct {
   min_subtotal: string | null;
   max_subtotal: string | null;
   point_cost: number;
+  /**
+   * `point_cost` as money, computed server-side, or null when the
+   * merchant shows points rather than cash.
+   *
+   * Do not derive this in the browser from `point_cost` and the rate:
+   * the server floors to the cent and a client rounding differently is
+   * a price that disagrees with the one that gets charged.
+   */
+  cash_cost?: string | null;
   display_order: number;
 }
 
 export interface DiscountStoreListResponse {
   products: DiscountStoreProduct[];
+  /** The raw ledger value. Null when nobody is signed in. */
   customer_points: number | null;
+  /**
+   * The same balance in both units, with the merchant's preference.
+   *
+   * Prefer this over `customer_points` for anything a customer reads.
+   * `customer_points` is kept because it shipped first and removing it
+   * would break every storefront already reading it.
+   */
+  balance?: LoyaltyBalance | null;
 }
 
 export interface DiscountStoreRedeemResponse {
@@ -2999,6 +3073,13 @@ export interface DiscountStoreRedeemResponse {
     valid_until: string | null;
   };
   points_remaining: number;
+  /**
+   * The balance AFTER the redemption, in both units.
+   *
+   * Sent so a cash-mode storefront does not have to convert
+   * `points_remaining` itself to update what it shows.
+   */
+  balance?: LoyaltyBalance;
 }
 
 export declare class DiscountStoreModule {
