@@ -3093,6 +3093,69 @@ export declare class DiscountStoreModule {
 }
 
 // =============================================================================
+// LOYALTY SUMMARY TYPES
+// =============================================================================
+
+/**
+ * One way to earn, with the server's own wording for it.
+ *
+ * `display` is the string to print. It is "$5.00" on a cash-back
+ * tenant and "500 points" on a points tenant, and which of those it
+ * is was decided server-side, beside the conversion a redemption is
+ * actually measured against. Do not rebuild it from `points`.
+ */
+export interface LoyaltyEarnRule {
+  /** Stable key: "signup", "first_order", "referral". */
+  key: string;
+  title: string;
+  /** The raw ledger figure. The ledger is always points. */
+  points: number;
+  /** "Once", "Every referral". */
+  limit: string;
+  /** Decimal string, or null when the tenant presents points. */
+  cash_value: string | null;
+  /** Print this. */
+  display: string;
+}
+
+/**
+ * What a dollar spent earns.
+ *
+ * The rate is set per ProductSize, so min and max can differ. When
+ * they do, `display` is NULL: the server refuses to write a headline
+ * claim the catalogue does not support, and a range is not a safer
+ * way to state a number nobody has confirmed.
+ */
+export interface LoyaltyEarnRate {
+  points_per_dollar_min: number;
+  points_per_dollar_max: number;
+  /** Only meaningful in cash-back mode. Decimal strings. */
+  percent_back_min: string | null;
+  percent_back_max: string | null;
+  display: string | null;
+}
+
+export interface LoyaltySummaryResponse {
+  /** The programme is switched on for this tenant. */
+  enabled: boolean;
+  display_mode: "points" | "cashback";
+  /** Null unless the tenant presents cash back. */
+  points_per_currency_unit: number | null;
+  currency: string;
+  earn_rate: LoyaltyEarnRate | null;
+  earn_rules: LoyaltyEarnRule[];
+  /** Present only for an authenticated customer. */
+  balance: (LoyaltyBalance & { display: string }) | null;
+}
+
+export declare class LoyaltyModule {
+  constructor(client: DashClient);
+
+  /** The whole programme, plus the caller's balance when signed in. */
+  summary(): Promise<LoyaltySummaryResponse>;
+}
+
+// =============================================================================
 // EARN POINTS TYPES
 // =============================================================================
 
@@ -4091,6 +4154,9 @@ export declare class DashClient {
 
   /** Discount Store (loyalty point redemption) */
   readonly discountStore: DiscountStoreModule;
+
+  /** Loyalty programme: earn rules, rate, and the caller's balance */
+  readonly loyalty: LoyaltyModule;
 
   /** Earn Points (social task completion for loyalty points) */
   readonly earnPoints: EarnPointsModule;
