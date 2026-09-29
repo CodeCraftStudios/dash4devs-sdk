@@ -4012,6 +4012,8 @@ export declare class ReferralsModule {
   validate(data: {
     secret: string;
     subtotal: string | number;
+    /** The shopper's cart. A guest keeps one code per cart instead of sharing one. */
+    cart_id?: string;
   }): Promise<{
     valid: boolean;
     referrer_first_name: string;
