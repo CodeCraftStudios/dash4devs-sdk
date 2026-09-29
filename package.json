@@ -26,6 +26,10 @@
     "./storage": {
       "import": "./storage/index.js",
       "types": "./storage/index.d.ts"
+    },
+    "./security": {
+      "import": "./security/index.js",
+      "types": "./security/index.d.ts"
     }
   },
   "bin": {
@@ -39,6 +43,7 @@
     "react/",
     "utils/",
     "storage/",
+    "security/",
     "cli/",
     "README.md"
   ],
