@@ -2622,6 +2622,11 @@ export declare class ShippingModule {
 export interface TaxCalculateOptions {
   /** Two-letter US state code (e.g., "CA") */
   state: string;
+  /**
+   * Ship-to ZIP code. Adds the county/city rate where the platform has one
+   * (New York today), so the quote matches what the order is charged.
+   */
+  zip?: string;
   /** Cart ID to calculate tax for */
   cart_id?: string;
   /** Manual items list (alternative to cart_id) */

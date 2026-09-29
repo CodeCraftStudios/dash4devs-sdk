@@ -31,6 +31,7 @@ export class TaxModule {
    *
    * @param {Object} options
    * @param {string} options.state - Two-letter US state code (e.g., "CA")
+   * @param {string} [options.zip] - Ship-to ZIP, for county/city rates where the platform has them (NY)
    * @param {string} [options.cart_id] - Cart ID to calculate tax for
    * @param {Array} [options.items] - Manual items list [{price, quantity, cannabinoid_type}]
    * @returns {Promise<TaxCalculateResponse>} Tax calculation result
