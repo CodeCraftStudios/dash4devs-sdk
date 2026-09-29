@@ -2180,6 +2180,12 @@ export interface CheckoutShipping {
 export interface CheckoutCompleteData {
   /** Cart ID */
   cartId: string;
+  /**
+   * Affiliate link code to credit. Defaults to the `aflnk` cookie the
+   * storefront's link grabber sets; null sends none. Credited with no
+   * discount when the shopper did not apply a code themselves.
+   */
+  affiliateLink?: string | null;
   /** Customer email */
   email?: string;
   /** 6-digit OTP verification code */

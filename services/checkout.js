@@ -116,7 +116,7 @@ export class CheckoutModule {
    * @returns {Promise<Object>} Order data, customer, auth tokens (guest only)
    */
   async complete(data) {
-    const { cartId, email, code, shipping, customerNotes, payment, payment_token, captcha_token, totals, analytics } = data;
+    const { cartId, email, code, shipping, customerNotes, payment, payment_token, captcha_token, totals, analytics, affiliateLink } = data;
     if (!cartId || !shipping) {
       throw new Error("cartId and shipping are required");
     }
@@ -148,6 +148,19 @@ export class CheckoutModule {
       try { attribution = this.client.insights.attributionForOrder(); } catch { /* ignore */ }
     }
     if (attribution) body.analytics = attribution;
+
+    // Affiliate link credit: the storefront's ?aflnk= link grabber keeps the
+    // affiliate's code in the `aflnk` cookie. Sent with every checkout so an
+    // order from an affiliate's link credits them even when the shopper never
+    // applied the code (the backend attaches it with no discount, and never to
+    // the affiliate's own order). Pass affiliateLink to override, or null to
+    // send none.
+    let link = affiliateLink;
+    if (link === undefined && typeof document !== "undefined") {
+      const m = document.cookie.match(/(?:^|; )aflnk=([^;]*)/);
+      link = m ? decodeURIComponent(m[1]) : undefined;
+    }
+    if (link) body.affiliate_link = link;
 
     const url = `${this.client.baseURL}/api/storefront/checkout/complete`;
     return this.client._fetch(url, {
