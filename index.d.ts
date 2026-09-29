@@ -404,6 +404,12 @@ export interface DashClientOptions {
   apiKey: string;
   /** Backend URL (default: "http://localhost:8000") */
   baseURL?: string;
+  /**
+   * The browser console "Stop" warning against self-XSS, printed once per page
+   * when the client is created in a browser (never on localhost). On by
+   * default; `false` turns it off, an object overrides its text.
+   */
+  consoleWarning?: boolean | { title?: string; heading?: string; body?: string; color?: string; skipLocalhost?: boolean };
 }
 
 export interface ProductsListOptions {

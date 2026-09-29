@@ -18,6 +18,7 @@ import { CheckoutModule } from "./services/checkout.js";
 import { EmailModule } from "./services/email.js";
 import { ShippingModule } from "./services/shipping.js";
 import { TrackingModule } from "./services/tracking.js";
+import { printConsoleWarning } from "./security/index.js";
 import { InsightsModule } from "./services/insights.js";
 import { ContactModule } from "./services/contact.js";
 import { UploadModule } from "./services/upload.js";
@@ -63,8 +64,16 @@ export class DashClient {
    * @param {Object} options - Configuration options
    * @param {string} options.apiKey - Your API key (pk_* or sk_*) from DevDash dashboard
    * @param {string} [options.baseURL] - Optional: Override API URL (for local development only)
+   * @param {boolean|Object} [options.consoleWarning] - The browser console "Stop" warning against
+   *   self-XSS, printed once per page (never on localhost). On by default; false turns it off, an
+   *   object overrides its text (see dash4devs/security).
    */
-  constructor({ apiKey, baseURL = "https://api.dashfordevs.com" }) {
+  constructor({ apiKey, baseURL = "https://api.dashfordevs.com", consoleWarning = true }) {
+    // Once per page, however many clients a site creates.
+    if (consoleWarning !== false && typeof window !== "undefined" && !window.__dash4devsConsoleWarned) {
+      window.__dash4devsConsoleWarned = true;
+      printConsoleWarning(typeof consoleWarning === "object" ? consoleWarning : {});
+    }
     if (!apiKey) {
       throw new Error("apiKey is required");
     }

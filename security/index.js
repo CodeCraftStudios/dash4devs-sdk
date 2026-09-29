@@ -51,6 +51,7 @@ function resolve(options = {}) {
  */
 export function printConsoleWarning(options = {}) {
   if (typeof window === "undefined" || typeof console === "undefined") return false;
+  window.__dash4devsConsoleWarned = true;
   const o = resolve(options);
   try {
     const host = window.location.hostname;
@@ -77,7 +78,8 @@ export function consoleWarningScript(options = {}) {
   // text can never close the surrounding <script> tag.
   const lit = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
   return (
-    "(function(){try{" +
+    // Marks the page as warned so the DashClient does not print it again.
+    "(function(){try{window.__dash4devsConsoleWarned=true;" +
     `var h=location.hostname;if(${o.skipLocalhost ? "true" : "false"}&&(${lit(LOCAL_HOSTS)}.indexOf(h)>-1||/\\.localhost$/.test(h)))return;` +
     `console.log("%c"+${lit(o.title)},${lit(`color:${o.color};font-size:44px;font-weight:800;-webkit-text-stroke:1px #000`)});` +
     `console.log("%c"+${lit(o.heading)},${lit(`color:${o.color};font-size:18px;font-weight:700`)});` +
