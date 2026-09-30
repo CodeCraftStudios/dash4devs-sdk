@@ -355,6 +355,25 @@ export class PaymentModule {
   }
 
   /**
+   * Whether the store has switched Google Pay on (dashboard → connected page).
+   * Reflects the active config's flag from client-config. The storefront should
+   * only render the Google Pay button when this is true.
+   * @returns {boolean}
+   */
+  get googlePayEnabled() {
+    return !!this._processor?.google_pay_enabled;
+  }
+
+  /**
+   * Whether the store has switched Apple Pay on. (Apple Pay checkout is not yet
+   * wired end-to-end — this flag exists for when it is.)
+   * @returns {boolean}
+   */
+  get applePayEnabled() {
+    return !!this._processor?.apple_pay_enabled;
+  }
+
+  /**
    * Create the CSR handler for a given processor.
    * @private
    */
