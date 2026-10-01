@@ -344,6 +344,14 @@ export interface CartItem {
     discount_percent: string;
   } | null;
   is_subscription?: boolean;
+  /** True when this line was added from a checkout upsell offer. */
+  is_upsell?: boolean;
+  /** The offer's price before its discount. Null unless is_upsell. */
+  upsell_original_price?: string | null;
+  /** When the offer's countdown ends. Null unless is_upsell. */
+  upsell_expires_at?: string | null;
+  /** The UpsellProduct this line came from. Null unless is_upsell. */
+  upsell_id?: string | null;
   /**
    * What this line could be changed to, for `changeItem`.
    *
@@ -1215,6 +1223,11 @@ declare class CartModule {
       product_image: string | null; variation_id: string | null; variation_name: string | null
       size_id: string; size_label: string; original_price: string; upsell_price: string
       discount_type: "percentage" | "fixed"; discount_value: string; category_name: string | null
+      /**
+       * False = either/or: accepting this offer swaps out any other
+       * non-accumulating offer already in the cart. True = it stacks.
+       */
+      accumulate: boolean
     }>
     timer_minutes: number; enabled: boolean
   }>;
@@ -1241,6 +1254,8 @@ declare class CartModule {
    */
   addUpsellToCart(upsellId: string, sessionId: string, sizeId?: string | null): Promise<{
     cart_id: string; item: CartItem; message: string
+    /** upsell_ids of either/or offers this add removed from the cart. */
+    replaced_upsell_ids: string[]
   }>;
 
   /**

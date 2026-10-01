@@ -605,7 +605,11 @@ export class CartModule {
    * @param {string} [sizeId] - Optional size override when the upsell was
    *   created in "All variations" mode. Pass the ProductSize ID of the
    *   variation the customer picked. Ignored for fixed-variation upsells.
-   * @returns {Promise<{cart_id: string, item: Object, message: string}>}
+   *
+   * Offers whose `accumulate` is false are either/or: adding one removes any
+   * other non-accumulating offer from the cart. The removed offers come back
+   * as `replaced_upsell_ids`, and the reloaded cart already reflects the swap.
+   * @returns {Promise<{cart_id: string, item: Object, message: string, replaced_upsell_ids: string[]}>}
    */
   async addUpsellToCart(upsellId, sessionId, sizeId = null) {
     if (!this._cartId) throw new Error("No active cart");
