@@ -1735,6 +1735,8 @@ declare class AuthorizeNetCSR {
 export interface GooglePayOptions {
   /** Display name shown on the Google Pay sheet. */
   merchantName?: string;
+  /** Log every sheet event (address changes, totals, the request) to the console. For test domains. */
+  debug?: boolean;
   /** Google-issued merchant id. REQUIRED for production (Google Pay Business Console). */
   merchantId?: string;
   /** Currency code (default "USD"). */

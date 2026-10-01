@@ -34,6 +34,8 @@
  */
 
 const GOOGLE_PAY_JS = "https://pay.google.com/gp/p/js/pay.js";
+// How long the sheet waits for onShippingAddressChange before showing an error.
+const RESOLVER_TIMEOUT_MS = 8000;
 
 // Authorize.net opaque-data descriptor for Google Pay tokens.
 const GOOGLE_PAY_DESCRIPTOR = "COMMON.GOOGLE.INAPP.PAYMENT";
@@ -100,6 +102,9 @@ export class GooglePayCSR {
     // off the zip). Return `{ error }` (a string or {message}) to reject an
     // unserviceable address right inside the sheet (e.g. a banned state).
     this._onShippingAddressChange = config.onShippingAddressChange || null;
+    // Logs every sheet event to the console (address changes, the total sent
+    // back, the request). For proving a setup on a test domain; leave off live.
+    this._debug = !!config.debug;
 
     this._loaded = false;
     this._loading = null;
@@ -213,18 +218,35 @@ export class GooglePayCSR {
    * @param {Object} intermediatePaymentData
    * @returns {Promise<Object>}
    */
+  _log(...args) {
+    if (this._debug && typeof console !== "undefined") console.info("[dash4devs googlePay]", ...args);
+  }
+
   async _handlePaymentDataChanged(intermediatePaymentData) {
     const resolver = this._onShippingAddressChange;
     if (typeof resolver !== "function") return {};
 
     const addr = intermediatePaymentData?.shippingAddress || {};
+    this._log("address changed", intermediatePaymentData?.callbackTrigger, addr);
+    const started = Date.now();
     try {
-      const res = await resolver({
-        countryCode: addr.countryCode || this._countryCode,
-        administrativeArea: addr.administrativeArea || "", // state
-        locality: addr.locality || "",                     // city
-        postalCode: addr.postalCode || "",
+      // Google waits on this to update the sheet. A slow or hung resolver used
+      // to leave the old total showing with no sign anything went wrong; past
+      // the limit the shopper is told instead, and can pick the address again.
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Couldn't update the total in time. Please select the address again.")), RESOLVER_TIMEOUT_MS);
       });
+      const res = await Promise.race([
+        resolver({
+          countryCode: addr.countryCode || this._countryCode,
+          administrativeArea: addr.administrativeArea || "", // state
+          locality: addr.locality || "",                     // city
+          postalCode: addr.postalCode || "",
+        }),
+        timeout,
+      ]).finally(() => clearTimeout(timer));
+      this._log(`resolver answered in ${Date.now() - started}ms`, res);
 
       // Unserviceable address → surface the reason inside the sheet.
       if (res && res.error) {
@@ -236,7 +258,10 @@ export class GooglePayCSR {
           error: { reason: "SHIPPING_ADDRESS_UNSERVICEABLE", message, intent: "SHIPPING_ADDRESS" },
         };
       }
-      if (!res || res.totalPrice == null) return {};
+      if (!res || res.totalPrice == null) {
+        this._log("resolver returned no totalPrice: the sheet keeps its current total");
+        return {};
+      }
 
       const displayItems = Array.isArray(res.lineItems)
         ? res.lineItems.map((li) => ({
@@ -257,6 +282,7 @@ export class GooglePayCSR {
         },
       };
     } catch (err) {
+      this._log("resolver failed", err);
       return {
         error: {
           reason: "OTHER_ERROR",
@@ -418,6 +444,7 @@ export class GooglePayCSR {
       },
     };
 
+    this._log("opening sheet", { environment: this._environment, dynamicPricing, merchantId: !!paymentDataRequest.merchantInfo.merchantId, totalPrice });
     const paymentData = await this._client.loadPaymentData(paymentDataRequest);
     const rawToken = paymentData?.paymentMethodData?.tokenizationData?.token;
     if (!rawToken) {

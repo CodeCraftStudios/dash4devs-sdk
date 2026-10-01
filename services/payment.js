@@ -488,6 +488,8 @@ export class PaymentModule {
       // Dynamic pricing resolver: recompute shipping+tax LIVE from the address the
       // shopper picks in the sheet so the total is correct before they authorize.
       onShippingAddressChange: options.onShippingAddressChange,
+      // Console logging of every sheet event, for testing a setup.
+      debug: options.debug,
     });
   }
 
