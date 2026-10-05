@@ -512,6 +512,55 @@ export class AuthModule {
   }
 
   /**
+   * Ask for a "back in stock" email for a sold-out variation + size (signed-in customers only:
+   * sign a new visitor in with requestOtp / verifyOtp first, which creates the customer).
+   * @param {string} productSlug - Product slug
+   * @param {string} sizeId - The sold-out size (its variation is implied)
+   * @returns {Promise<{success: boolean, created: boolean, in_stock: boolean, id?: string}>}
+   */
+  async requestRestock(productSlug, sizeId) {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/products/${encodeURIComponent(productSlug)}/notify-restock`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+      body: JSON.stringify({ size_id: sizeId }),
+    });
+  }
+
+  /**
+   * The signed-in customer's restock emails (open first), for an account Notifications page.
+   * @returns {Promise<{restock_requests: Object[]}>}
+   */
+  async getRestockRequests() {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/restock-requests`;
+    return this.client._fetch(url, {
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+    });
+  }
+
+  /**
+   * Stop one restock email.
+   * @param {string} requestId - Restock request ID
+   * @returns {Promise<{restock_request: Object}>}
+   */
+  async unsubscribeRestock(requestId) {
+    if (!this._accessToken) {
+      throw new Error("Not authenticated");
+    }
+    const url = `${this.client.baseURL}/api/storefront/auth/restock-requests/${encodeURIComponent(requestId)}/unsubscribe`;
+    return this.client._fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this._accessToken}` },
+    });
+  }
+
+  /**
    * Check if current IP/session is banned
    * @returns {Promise<{banned: boolean, reason?: string}>}
    */

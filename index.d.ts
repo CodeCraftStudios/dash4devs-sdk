@@ -509,6 +509,30 @@ export interface ProductReviewsResponse {
   };
 }
 
+/** A "Notify Me When Back In Stock" request (inventory.RestockRequest). */
+export interface RestockRequest {
+  id: string;
+  /** open: waiting; notified: the back-in-stock email went out; unsubscribed: stopped. */
+  status: "open" | "notified" | "unsubscribed";
+  product: { id: string; name: string; slug: string; category_slug: string | null; image: string | null };
+  variation: string | null;
+  size_id: string;
+  size: string | null;
+  in_stock: boolean;
+  created_at: string;
+  notified_at: string | null;
+  unsubscribed_at: string | null;
+}
+
+export interface RestockRequestResponse {
+  success: boolean;
+  /** false when an open request already existed or the size is in stock. */
+  created: boolean;
+  /** The size is in stock: nothing was stored, add it to the cart instead. */
+  in_stock: boolean;
+  id?: string;
+}
+
 export interface SubmitReviewData {
   /** Rating from 1-5 (required) */
   rating: number;
@@ -1533,6 +1557,12 @@ declare class AuthModule {
    * Get customer's order history
    */
   getOrders(options?: { limit?: number; offset?: number }): Promise<CustomerOrdersResponse>;
+  /** Ask for a "back in stock" email for a sold-out size (signed-in customers only). */
+  requestRestock(productSlug: string, sizeId: string): Promise<RestockRequestResponse>;
+  /** The signed-in customer's restock emails, open first. */
+  getRestockRequests(): Promise<{ restock_requests: RestockRequest[] }>;
+  /** Stop one restock email. */
+  unsubscribeRestock(requestId: string): Promise<{ restock_request: RestockRequest }>;
 
   /**
    * Get a single order by ID
